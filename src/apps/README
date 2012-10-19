@@ -1,0 +1,9 @@
+cad_ui.app:
+    This is a bundled version of the cad_ui tool.
+    It should be considered alpha software.  Use at your own risk.
+
+Documentation:
+    http://fab.cba.mit.edu/classes/S62.12/people/keeter.matt/tutorials
+    
+Fab Modules:
+    http://kokompe.cba.mit.edu
