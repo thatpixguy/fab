@@ -25,7 +25,7 @@ void fab_read_svg(struct fab_vars *v, char *input_file_name, int points, int res
    //
    #define SVG_MAX_FILE 10000000
 	FILE *input_file;
-   char buf[SVG_MAX_FILE];
+   char *buf = calloc(sizeof(char),SVG_MAX_FILE);
    int point,ret;
    char *ptr,*start,*end,*endptr;
    double minx,miny,width,height;
@@ -558,6 +558,7 @@ void fab_read_svg(struct fab_vars *v, char *input_file_name, int points, int res
          printf("   svg_path: text not yet implemented\n");
          }
       } while ((endptr-ptr) > 1);
+      free(buf);
    }
 
 main(int argc, char **argv) {
