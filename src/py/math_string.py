@@ -48,10 +48,10 @@ class MString:
         return other | self
 
     def __sub__(self, other):
-        return self & ~other
+        return self & ~MString(other)
     
     def __rsub__(self, other):
-        return other & ~self
+        return other & ~MString(self)
     
     def replace(self, target, substitution):
         return MString(self.s.replace(target, substitution))

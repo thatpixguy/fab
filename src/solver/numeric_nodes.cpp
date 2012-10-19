@@ -1,4 +1,5 @@
 #include "numeric_nodes.hpp"
+#include "switches.hpp"
 
 using namespace std;
 
@@ -347,35 +348,55 @@ void NumericMin::eval(const FabInterval& X,
                       const FabInterval& Z)
 {
     result_interval = min(left->result_interval, right->result_interval);
-    /*
-    if (right->result_interval <= left->result_interval) {
+
+#if MINMAX_PRUNE
+    if (right->result_interval < left->result_interval) {
         if (!left_cached) {
             left_cached = true;
             left->sub_ref();
         }
+        
         // In case this node gets deactivated out, save a float result
         left->result_float = left->result_interval.lower();
-    } else {
-        if (left_cached) {
-            left_cached = false;
-            left->add_ref();
-        }
+        
+    } else if (left_cached) {
+        left_cached = false;
+        left->add_ref();
     }
     
-    if (left->result_interval <= right->result_interval) {
+    if (left->result_interval < right->result_interval) {
         if (!right_cached) {
-            right_cached = true;
             right->sub_ref();
+            right_cached = true;
         }
+        
         // In case this node gets deactivated, save a float result
         right->result_float = right->result_interval.lower();
-    } else {
-        if (right_cached) {
-            right_cached = false;
-            right->add_ref();
-        }
+        
+    } else if (right_cached) {
+        right_cached = false;
+        right->add_ref();
     }
-    */
+#endif
+
+}
+
+void NumericMin::deactivate()
+{
+    Node::deactivate();
+    if (!left_cached)
+        left->sub_ref();
+    if (!right_cached)
+        right->sub_ref();
+}
+
+void NumericMin::activate()
+{    
+    if (!left_cached)
+        left->add_ref();   
+    if (!right_cached)
+        right->add_ref();
+    Node::activate();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -397,33 +418,55 @@ void NumericMax::eval(const FabInterval& X,
 {
     result_interval = max(left->result_interval, right->result_interval);
     
-    /*
-    if (right->result_interval >= left->result_interval) {
-        if (!left_cached)
+#if MINMAX_PRUNE
+    if (right->result_interval > left->result_interval) {
+        if (!left_cached) {
             left->sub_ref();
-        left_cached = true;
-
+            left_cached = true;
+        }
+        
         // In case this node gets deactivated out, save a float result
         left->result_float = left->result_interval.lower();
-    } else {
-        if (left_cached)
-            left->add_ref();
+        
+    } else if (left_cached) {
+        left->add_ref();
         left_cached = false;
     }
     
-    if (left->result_interval >= right->result_interval) {
-        if (!right_cached)
+    if (left->result_interval > right->result_interval) {
+        if (!right_cached) {
             right->sub_ref();
-        right_cached = true;
-
+            right_cached = true;
+        }
+        
         // In case this node gets deactivated, save a float result
         right->result_float = right->result_interval.lower();
-    } else {
-        if (right_cached) 
-            right->add_ref();
+        
+    } else if (right_cached) {
+        right->add_ref();
         right_cached = false;
     }
-    */
+#endif
+
+}
+
+
+void NumericMax::activate()
+{
+    if (!left_cached)
+        left->add_ref();
+    if (!right_cached)
+        right->add_ref();
+    Node::activate();
+}
+
+void NumericMax::deactivate()
+{
+    Node::deactivate();
+    if (!left_cached)
+        left->sub_ref();
+    if (!right_cached)
+        right->sub_ref();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

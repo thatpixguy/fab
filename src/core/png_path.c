@@ -18,9 +18,12 @@ main(int argc, char **argv) {
    //
    // local vars
    //
-   struct fab_vars v = init_vars(&v);
-   struct fab_vars vxz = init_vars(&vxz);
-   struct fab_vars vyz = init_vars(&vyz);
+   struct fab_vars v;
+   init_vars(&v);
+   struct fab_vars vxz;
+   init_vars(&vxz);
+   struct fab_vars vyz;
+   init_vars(&vyz);
    int offset_number,offset_count,
       layer,layer_number,nz,xz,yz,xy,
       ix,ixmin,ixmax,idx,

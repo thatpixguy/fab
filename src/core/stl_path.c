@@ -16,7 +16,8 @@ main(int argc, char **argv) {
    //
    // local vars
    //
-   struct fab_vars v = init_vars(&v);
+   struct fab_vars v;
+   init_vars(&v);
    float units,resolution,error,offset_diameter,offset_overlap,z_thickness,z_top,z_bottom;
    int offset_number;
    char axis,cmd[100];

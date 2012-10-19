@@ -1,0 +1,1 @@
+# Dummy module for everyone to plug in their global singletons.

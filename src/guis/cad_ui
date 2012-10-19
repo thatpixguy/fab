@@ -9,6 +9,8 @@ import subprocess
 import inspect
 import re
 
+from datetime import datetime
+
 SHOW_SCROLL = True
 
 # Special case to set up the search path if we're bundled into
@@ -16,14 +18,16 @@ SHOW_SCROLL = True
 if '.app' in sys.argv[0]:
     sys.path.append('')
     APP_MODE = True
+    BUNDLED = True
 else:
     APP_MODE = False
+    BUNDLED = False
 
 import cad_shapes
 import cad_text
 
 from Queue import Queue, Empty
-from threading import Thread
+import threading
 
 full_image_size = 480
 small_image_size = 2 * full_image_size / 3
@@ -33,7 +37,7 @@ image_size = full_image_size
 text_width = 480
 border = 3
 
-VERSION = '0.20'
+VERSION = '0.25'
 
 DARK_THEME = {
 'txt': [(wx.stc.STC_STYLE_DEFAULT,    '#000000', '#000000'),
@@ -79,14 +83,22 @@ LIGHT_THEME = {
     
 def ApplyTheme(theme, txt, backgrounds, foregrounds):
     for t in txt:
-        for s in theme['txt']:
-            t.StyleSetBackground(s[0], s[1])
-            t.StyleSetForeground(s[0], s[2])
+        t.apply_theme(theme['txt'])
     for b in backgrounds:
         b(theme['background'])
     for f in foregrounds:
         f(theme['foreground'])
     return theme
+
+class CadEditor(wx.py.editwindow.EditWindow):
+    def __init__(self, parent, size, style):
+        wx.py.editwindow.EditWindow.__init__(self, parent,
+                                             size=size, style=style)
+    
+    def apply_theme(self, theme):
+        for s in theme:
+            self.StyleSetBackground(s[0], s[1])
+            self.StyleSetForeground(s[0], s[2])
 
 ################################################################################
 # LibraryFrame
@@ -98,7 +110,7 @@ class LibraryFrame(wx.Frame):
         wx.Frame.__init__(self, None, title = title)
 
         # Create text pane.
-        self.txt = wx.py.editwindow.EditWindow(self, size=(text_width, text_width),
+        self.txt = CadEditor(self, size=(text_width, text_width),
                                                style=wx.NO_BORDER)
         if not SHOW_SCROLL:
             self.txt.SetUseHorizontalScrollBar(False)
@@ -140,7 +152,7 @@ class CadVars:
       self.function = '' # cad function
       self.labels = [] # display labels
       self.mm_per_unit = 1.0 # file units
-      self.type = 'Boolean' # math string type
+      self.type = '' # math string type
 
 ################################################################################
 # ResolutionDialog
@@ -188,7 +200,7 @@ class ResolutionDialog(wx.Dialog):
 ##############################################################################
 
 class CadUIFrame(wx.Frame):
-    def __init__(self, Parent, title = 'cad UI'):
+    def __init__(self, Parent, title = 'cad_ui'):
         wx.Frame.__init__(self, None, title = title)
         
         self.parent = Parent
@@ -208,18 +220,17 @@ class CadUIFrame(wx.Frame):
                          saveasCallback = Parent.OnSaveAs,
                          exitCallback   = Parent.OnExit,
                          renderCallback = Parent.Render,
-                         layersCallback = Parent.SetLayers,
                          exportCallback = Parent.Export)
                          
         self.ArrangeGUI(self.txt, imgpanel)
         self.ApplyTheme(DARK_THEME)
+        
+        self.Bind(wx.EVT_IDLE, lambda e: Parent.monitor_threads())
 
 ################################################################################
 
     def CreateTextBox(self, textCallback, isSavedCallback, isUnsavedCallback):
-        self.txt = wx.py.editwindow.EditWindow(self,
-                                               size=(text_width, 0),
-                                               style=wx.NO_BORDER)
+        self.txt = CadEditor(self, size=(text_width, 0), style=wx.NO_BORDER)
         # Set the margins on the text window:
         #   2 with margin numbers
         #   1 with symbols to indicate compile errors
@@ -281,10 +292,9 @@ class CadUIFrame(wx.Frame):
                                         self.Layout()]
 
         # Create text pane.
-        self.outputTxt = wx.py.editwindow.EditWindow(centeringPanel,
-                                                     size=(image_size + border * 12,
-                                                           image_size/4),
-                                                    style=wx.NO_BORDER)
+        self.outputTxt = CadEditor(centeringPanel, size=(image_size + border * 12,
+                                                         image_size/4),
+                                   style=wx.NO_BORDER)
         if not SHOW_SCROLL:
             self.outputTxt.SetUseHorizontalScrollBar(False)
             dummyScroll = wx.ScrollBar(self)
@@ -323,7 +333,7 @@ class CadUIFrame(wx.Frame):
                     openCallback   = None, reloadCallback = None,
                     saveCallback   = None, saveasCallback = None,
                     exitCallback   = None, renderCallback = None,
-                    layersCallback = None, exportCallback = None):
+                    exportCallback = None):
                     
         menu = wx.Menu()
         
@@ -359,28 +369,6 @@ class CadUIFrame(wx.Frame):
             "Re-render whenever the cad file changes")
         self.Bind(wx.EVT_MENU, renderCallback, self.auto)
         self.auto.Check(True)
-        
-        layersMenu = wx.Menu()
-        settingsMenu.AppendSubMenu(layersMenu, 'Layers',
-            "Number of slices for height map rendering")
-            
-        self.layers1 = layersMenu.AppendRadioItem(-1, '1')
-        self.Bind(wx.EVT_MENU, lambda e: layersCallback(1), self.layers1)
-        
-        self.layers25 = layersMenu.AppendRadioItem(-1, '25')
-        self.Bind(wx.EVT_MENU, lambda e: layersCallback(25), self.layers25)
-        
-        self.Bind(wx.EVT_MENU, lambda e: layersCallback(50),
-                  layersMenu.AppendRadioItem(-1, '50'))
-                  
-        self.Bind(wx.EVT_MENU, lambda e: layersCallback(100),
-                  layersMenu.AppendRadioItem(-1, '100'))
-                  
-        self.Bind(wx.EVT_MENU, lambda e: layersCallback(150),
-                  layersMenu.AppendRadioItem(-1, '150'))
-                  
-        self.Bind(wx.EVT_MENU, lambda e: layersCallback(-1),
-                  layersMenu.AppendRadioItem(-1, 'Full'))
 
         # Menu to change view options
         viewMenu = wx.Menu()
@@ -542,7 +530,7 @@ class CadUIFrame(wx.Frame):
 ###############################################################################
 
     def OnMenuHighlight(self, event):
-        # Show how to get menu item imfo from this event handler
+        # Show how to get menu item info from this event handler
         id = event.GetMenuId()
         item = self.GetMenuBar().FindItemById(id)
         if not item or not item.GetHelp():
@@ -577,21 +565,6 @@ class CadUIFrame(wx.Frame):
 
     def GetText(self):
         return self.txt.GetText()
-
-###############################################################################
-
-    def GetTextHighlight(self):
-        (line, _) = self.txt.GetCurLine()
-        line = line[:-1]
-        if line.count('=') != 1:
-            return self.txt.GetText()
-
-        colored = "%s = color(16777215, %s)\n" % tuple(line.split('='))
-
-        t = self.txt.GetText()
-        t = t.replace(line, colored)
-        t += "\ncad.type = 'Highlight'"
-        return t
 
 ###############################################################################
 
@@ -672,9 +645,15 @@ class CadUIFrame(wx.Frame):
             if not matches:
                 return
 
-        # Pick the largest match
-        match = reduce(lambda x, y: x if len(x[0]) > len(y[0]) else y,
-                       matches, ('',''))
+        # Pick the match with the largest fraction of matching characters
+        best_score = 0
+        match = ''
+        print matches
+        for m in matches:
+            score = min(len(m), len(token)) / float(max(len(m), len(token)))
+            if  score > best_score:
+                best_score = score
+                match = m
         try:
             args = inspect.getargspec(eval(match[1] + match[0])).args
             self.SetHint(match[0] + '(' + ', '.join(args) + ')')
@@ -692,15 +671,11 @@ class CadUIApp(wx.App):
         self.frame.Show()
         self.image = wx.EmptyImage(image_size, image_size)
         
-        self.math_png_process = None
-        self.cad_math_process = None
-        self.math_svg_process = None
-        self.math_stl_process = None
-        self.math_dot_process = None
-        self.export = None
+        self.threads = []
+        self.export = False
         
-        self.num_layers = 1
         self.saved = True
+        
         # Either load a file from the first command-line argument, or open
         # a template
         if len(sys.argv) != 2:
@@ -712,16 +687,19 @@ class CadUIApp(wx.App):
                         filename = sys.argv[1]
                     else:
                         filename = os.path.join(os.getcwd(), sys.argv[1])
+                    print filename
                     self.SetFilename(os.path.split(filename)[0],
                                      os.path.split(filename)[1])
                 self.LoadFile()
             except:
-                print "Loading file %s failed." % sys.argv[1]
                 self.LoadTemplate()
+                self.SetFilename(os.path.split(filename)[0],
+                                 os.path.split(filename)[1])
+                self.OnSave()
         
         self.cad = CadVars()
-        self.cad.type = "None"
         self.resolution = 0
+        
         return True
     
     def LoadTemplate(self, e = None):
@@ -751,9 +729,6 @@ cad.function = circle(0, 0, 0.5)''')
         self.saved = False
         self.UpdateTitle()
     
-    def SetLayers(self, layers):
-        self.num_layers = layers
-        self.Render()
     
     def OnSave(self, e = None):
         if self.cadFilePath:
@@ -798,19 +773,17 @@ cad.function = circle(0, 0, 0.5)''')
             path = os.path.join(directory, filename)
             
             if target == 'math':
-                self.export = ('math', path)
-            elif target == 'png':
-                self.export = ('png', path, resolution)
-            elif target == 'svg':
-                self.export = ('svg', path, resolution)
-            elif target == 'stl':
-                self.export = ('stl', path, resolution)
+                self.start_thread(self.export_math, (path,))
             elif target == 'dot':
-                self.export = ('dot', path)
-            self.Render()
+                self.start_thread(self.export_dot, (path,))
+            elif target == 'png':
+                self.start_thread(self.export_png, (resolution,path))
+            elif target == 'svg':
+                self.start_thread(self.export_svg, (resolution,path))
+            elif target == 'stl':
+                self.start_thread(self.export_stl, (resolution,path))
             
         dlg.Destroy()
-            
     
     def LoadImage(self, imageName):
         '''Loads an image from a file and puts it into the UI.'''
@@ -829,7 +802,6 @@ cad.function = circle(0, 0, 0.5)''')
         self.cadFilePath = os.path.join(self.cadFileDir, name)
         
         self.cad = CadVars()
-        self.cad.type = "None"
         
     def OnOpen(self, e = None):
         '''Callback for the open file dialog box.  Saves the name
@@ -863,8 +835,6 @@ cad.function = circle(0, 0, 0.5)''')
             text = f.read()
 
         if reset:
-            self.frame.layers1.Check(True)
-            self.num_layers = 1
             self.frame.auto.Check(True)
         
         self.frame.SetText(text)
@@ -874,9 +844,9 @@ cad.function = circle(0, 0, 0.5)''')
 
     def UpdateTitle(self):
         if not self.cadFilePath:
-            s = 'cad UI:  [Untitled]'
+            s = 'cad_ui:  [Untitled]'
         else:
-            s = 'cad UI:  ' + self.cadFilePath
+            s = 'cad_ui:  ' + self.cadFilePath
 
         if self.saved:
             self.frame.SetTitle(s)
@@ -885,13 +855,13 @@ cad.function = circle(0, 0, 0.5)''')
     
     def OnText(self, event):
         self.frame.SyntaxHelper()
-        
-        # Modify the frame to show that the file is unrendered
-        self.frame.SetBorder((100, 100, 100))
-        
+            
         # If auto-render is enabled, then render the image
+        # (unless we're currently exporting something)
         if self.frame.auto.IsChecked() and not self.export:
             self.Render()
+        else:
+            self.frame.SetBorder((100, 100, 100))
 
     def WarnChanges(self):
         '''Check to see if the user is ok with abandoning unsaved changes.
@@ -914,6 +884,7 @@ cad.function = circle(0, 0, 0.5)''')
 
     def GetCadVars(self):
         self.cad = CadVars()
+
         f = open('_cad_ui_tmp.math')
         for line in f:
             if 'format:' in line:
@@ -932,7 +903,8 @@ cad.function = circle(0, 0, 0.5)''')
         self.cad.zmax = self.cad.zmin + dz
         f.close()
    
-    def PickResolution(self, size = None):
+    def get_resolution(self, size = None):
+        '''Calculates the desired resolution based on the .math file.'''
         if not size:
             size = image_size
         self.GetCadVars()
@@ -942,334 +914,492 @@ cad.function = circle(0, 0, 0.5)''')
         side = max(dx, dy)
         self.resolution = size / (self.cad.mm_per_unit * side)
         return self.resolution
+
+################################################################################
     
-    def CheckProcess(self,e = None):
-        '''Checks to see if the child solver process is done.  Displays the
-           image if it completed successfully, otherwise rebinds a timer
-           to try again in another 100 milliseconds.'''
+    def start_thread(self, callable, args=()):
+        e = threading.Event()
+        t = threading.Thread(target=callable, args=args, kwargs={'event':e})
+        t.daemon = True
+        t.start()
+        self.threads += [(t, e)]
+    
+    def monitor_threads(self):
+        ''' Monitor the list of active threads, joining those that are dead.
         
-        # Check the cad_math process.  If it has complete, start math_png on
-        # its output file; otherwise, reset the callback.
-        if self.cad_math_process and self.cad_math_process.poll() is not None:
-            # If the process has terminated successfully, move on to math_png
-            success = self.cad_math_process.returncode == 0
-            errors = self.cad_math_process.stderr.readlines()
+            This function runs in the wx IDLE callback, so it is continuously
+            checking in the background.
+        '''
+        dead_threads = filter(lambda (thread, event): not thread.is_alive(),
+                              self.threads)
+                              
+        for thread, event in dead_threads:
+            thread.join()
+        
+        self.threads = filter(lambda t: t not in dead_threads, self.threads)
+        
+    def stop_threads(self):
+        ''' Tells all threads to stop at their earliest convenience.
+        '''
+        for thread, event in self.threads:
+            event.set()
+        print ''
+################################################################################
+
+    def export_math(self, filename, event = threading.Event()):
+        '''Exports a .math file.
+        
+           Updates the UI in case of success.
+        '''
+        self.export = True
+        
+        print "####    Exporting .math file    ####"
+        wx.CallAfter(self.frame.ClearError)
+        wx.CallAfter(self.frame.SetBorder, (255, 165, 0))
+        wx.CallAfter(self.frame.SetOutput, "\n\tNo errors")
+        wx.CallAfter(self.frame.SetStatus,
+                     "Converting to math string (.math export)")
+        cm = self.cad_math(filename, event)
+
+        if cm is True: # Program succeeded
+            wx.CallAfter(self.frame.SetBorder, (0, 255, 0))
+            wx.CallAfter(self.frame.SetStatus,
+                         ".math export complete")
+        self.export = False
+
+################################################################################
+
+    def export_png(self, resolution, filename, event = threading.Event()):
+        '''Exports a .png file.
+        
+           Updates the UI in case of success.
+        '''
+        self.export = True
+        
+        print "####    Exporting .png file     ####"
+        wx.CallAfter(self.frame.ClearError)
+        wx.CallAfter(self.frame.SetBorder, (255, 165, 0))
+        wx.CallAfter(self.frame.SetOutput, "\n\tNo errors")
+        wx.CallAfter(self.frame.SetStatus,
+                     "Converting to math string (.png export)")
+        
+        # Save math file with default filename
+        if not self.cad_math(event=event):
+            self.export = False
+            return
+                
+        # Call math_png
+        mp = self.math_png(resolution, filename, event, incremental = False)
+        
+        if mp is True:
+            wx.CallAfter(self.frame.SetBorder, (0, 255, 0))
+            wx.CallAfter(self.frame.SetStatus,
+                         ".png export complete") 
+        self.export = False
+
+################################################################################
+
+    def export_stl(self, resolution, filename, event = threading.Event()):
+        '''Exports a .stl file.
+        
+           Updates the UI in case of success.
+        '''
+        self.export = True
+        
+        print "####    Exporting .stl file     ####"
+        wx.CallAfter(self.frame.ClearError)
+        wx.CallAfter(self.frame.SetBorder, (255, 165, 0))
+        wx.CallAfter(self.frame.SetOutput, "\n\tNo errors")
+        wx.CallAfter(self.frame.SetStatus,
+                     "Converting to math string (.stl export)")
+        
+        # Save math file with default filename
+        if not self.cad_math(event=event):
+            self.export = False
+            return
+                
+        # Call math_stl
+        mp = self.math_stl(resolution, filename, event)
+        
+        if mp is True:
+            wx.CallAfter(self.frame.SetBorder, (0, 255, 0))
+            wx.CallAfter(self.frame.SetStatus,
+                         ".stl export complete") 
+                         
+        self.export = False
+                         
+################################################################################
+
+    def export_svg(self, resolution, filename, event = threading.Event()):
+        '''Exports a .svg file.
+        
+           Updates the UI in case of success.
+        '''
+        self.export = True
+        
+        print "####    Exporting .svg file     ####"
+        wx.CallAfter(self.frame.ClearError)
+        wx.CallAfter(self.frame.SetBorder, (255, 165, 0))
+        wx.CallAfter(self.frame.SetOutput, "\n\tNo errors")
+        wx.CallAfter(self.frame.SetStatus,
+                     "Converting to math string (.svg export)")
+        
+        # Save math file with default filename
+        if not self.cad_math(event=event):
+            self.export = False
+            return
+                
+        # Call math_svg
+        mp = self.math_svg(resolution, filename, event)
+        
+        if mp is True:
+            wx.CallAfter(self.frame.SetBorder, (0, 255, 0))
+            wx.CallAfter(self.frame.SetStatus,
+                         ".svg export complete") 
+                         
+        self.export = False
+################################################################################
+
+    def export_dot(self, filename, event = threading.Event()):
+        '''Exports a .dot file.
+        
+           Updates the UI in case of success.
+        '''
+        self.export = True
+        
+        print "####    Exporting .dot file     ####"
+        wx.CallAfter(self.frame.ClearError)
+        wx.CallAfter(self.frame.SetBorder, (255, 165, 0))
+        wx.CallAfter(self.frame.SetOutput, "\n\tNo errors")
+        wx.CallAfter(self.frame.SetStatus,
+                     "Converting to math string (.dot export)")
+        
+        # Save math file with default filename
+        if not self.cad_math(event=event):
+            self.export = False
+            return
+                
+        # Call math_dot
+        mp = self.math_dot(filename, event)
+        
+        if mp is True:
+            wx.CallAfter(self.frame.SetBorder, (0, 255, 0))
+            wx.CallAfter(self.frame.SetStatus,
+                         ".dot export complete") 
+        self.export = False
+################################################################################
+
+    def render(self, event = threading.Event()):
+        ''' Renders an image and loads it in the display panel.
+        
+            This function should be called in an independent thread.
+        '''
+        now = datetime.now()
+        print "####       Rendering image      ####"
+        wx.CallAfter(self.frame.ClearError)
+        wx.CallAfter(self.frame.SetBorder, (255, 165, 0))
+        wx.CallAfter(self.frame.SetOutput, "\n\tNo errors")
+        wx.CallAfter(self.frame.SetStatus,
+                     "Converting to math string")
+        
+        # Save math file with default filename
+        if not self.cad_math(event=event):
+            return
+    
+        # Extract the resolution from the .math file
+        resolution = self.get_resolution()
+        
+        # Call math_png.  If it fails, then return early.
+        if self.math_png(resolution, event=event) is not True:
+            return
             
-            if len(errors) > 3:
-                errors = errors[0] + ''.join(errors[3:])
-            else:
-                errors = '\n\tNo errors.'
+        wx.CallAfter(self.frame.SetBorder, (0, 255, 0))
+        wx.CallAfter(self.LoadImage, '_cad_ui_tmp.png')
+        wx.CallAfter(os.remove, '_cad_ui_tmp.png')
+        wx.CallAfter(self.frame.SetStatus, "")
+        print "Time taken: ", datetime.now() - now
+        
+################################################################################
+
+    def cad_math(self, filename = None, event = threading.Event()):
+        '''Runs cad_math.  This should be started in a separate thread.
+        
+           Returns None if interrupted, False if failed, True if success.
+           In case of failure, updates UI accordingly.
+           
+           Deletes the source .cad file on success.
+           
+        '''
+    
+        # Dump the contents of the text box into a .cad file.
+        with open('_cad_ui_tmp.cad', 'w') as cad_file:
+        
+            # To maintain backwards compatibility, we need to include
+            # this pair of libraries
+            cad_file.write('from string import *\nfrom math import *\n')
             
-            # Go through the set of errors and change line numbers to match
-            # the file (since we may be adding lines to the beginning)
-            errorLine = -1
+            # To allow for included files, we modify the python system path
+            if self.cadFileDir:
+                cad_file.write('import sys\nsys.path.append("%s")\n' %
+                               self.cadFileDir)
+        
+            # Check to see if we should abort before writing the file
+            if event.is_set(): return
+                                       
+            cad_file.write(self.frame.GetText())
+        
+        # If we are exporting with a particular file name, then the filename
+        # field should be populated; otherwise, use the default name.
+        if filename is None:
+            filename = '_cad_ui_tmp.math'
+        
+        if BUNDLED:
+            command = ['../MacOS/python', 'cad_math',
+                       '_cad_ui_tmp.cad',target]
+        else:
+            command = ['cad_math', '_cad_ui_tmp.cad', filename]
+        
+        # Last chance to abort before starting the subprocess
+        if event.is_set(): return
+        
+        # Start running the process
+        print '>>  ' + ' '.join(command)
+        process = subprocess.Popen(command, stderr = subprocess.PIPE)
+
+        # Wait for the process to terminate or for the stop event to be set    
+        while process.poll() is None:
+            if event.is_set():
+                process.terminate()
+                return
+    
+        # If something went wrong, try to parse the error messages
+        # and update the GUI accordingly
+        if process.returncode != 0:
+        
+            # Read the text of the error messages
+            errors = process.stderr.readlines()
+            errors = errors[0] + ''.join(errors[3:])
+            
+            # Go through the set of errors and modify line numbers to match
+            # the displayed file (since we may be adding lines to the beginning)
+            line_offset = (4 if self.cadFileDir else 2)
             for m in re.findall(r'line (\d+)', errors):
-                errorLine = int(m) - (5 if self.cadFileDir else 3) + 1
-                errors = errors.replace('line %s' % m, 'Line %i' % errorLine)
-            self.frame.SetOutput(errors.replace('Line','line'))
-                            
-            self.cad_math_process.stderr.close()            
-            self.cad_math_process = None
+                error_line = int(m) - line_offset
+                errors = errors.replace('line %s' % m, 'line_ %i' % error_line)
+            errors = errors.replace('line_','line')
             
-            if success:
-
-                # If this was the first run, then check to see if we should
-                # automatically switch to multi-layer mode.
-                first_time = (self.cad.type == "None")
-                os.remove("_cad_ui_tmp.cad")
-                
-                # If this is the first time rendering this particular file, check to
-                # see if it has multiple z layers - if so, rerender with 25 slices.
-                if not self.export:
-                    self.GetCadVars()
-                    
-                    if first_time and self.cad.zmax != self.cad.zmin:
-                        self.frame.layers25.Check(True)
-                        self.num_layers = 25
-                        self.Render()
-                        
-                if not self.export or self.export[0] == 'png':
-                    self.StartMathPng()
-                elif self.export and self.export[0] == 'svg':
-                    self.StartMathSvg()
-                elif self.export and self.export[0] == 'stl':
-                    self.StartMathStl()
-                elif self.export and self.export[0] == 'dot':
-                    self.StartMathDot()
-                else:
-                    self.frame.SetBorder((0, 255, 0))
-                    self.frame.SetStatus('.math export successful')
-                    self.export = None
-            else:
-                self.frame.SetBorder((255, 0, 0))
-                
-                # If we failed, then clear the export state variable (because we won't
-                # be making it to the png stage)
-                self.export = None
-                
-                if self.cad.type == "Highlight":
-                    self.frame.SetStatus("cad_math + highlighting failed")
-                else:
-                    if errorLine == -1:
-                        self.frame.SetStatus("cad_math failed")
-                        return
-                    self.frame.MarkError(errorLine - 1)
-                    self.frame.SetStatus("cad_math failed (line %i)" % errorLine)
-            return
-
-        # Check the math_png process.  If it is complete, load the image then
-        # delete the temporary files.
-        if self.math_png_process and self.math_png_process.poll() is not None:
-            success = self.math_png_process.returncode == 0
+            # One more chance to abort before we update the GUI
+            if event.is_set(): return
             
-            # The monitoring process should die once it sees stdout, so we wait for
-            # it to terminate (otherwise we'll lose data that's being passed on stdout)
-            self.monitor.join()
-            self.math_png_process.stdout.close()
-            errors = self.math_png_process.stderr.read()
-            if not errors:
-                errors = '\n\tNo errors.'
-            self.frame.SetOutput(errors)
-            self.math_png_process.stderr.close()
-
-            self.math_png_process = None
+            # Write out the errors in the text box
+            wx.CallAfter(self.frame.SetOutput, errors)
             
-            if success:
-                if self.export:
-                    self.export = None
-                    self.frame.SetStatus('.png export successful.')
-                else:
-                    self.LoadImage("_cad_ui_tmp.png")
-                    os.remove("_cad_ui_tmp.png")
-                    self.frame.SetStatus('')
-                    
-                self.frame.SetBorder((0, 255, 0))
-                os.remove("_cad_ui_tmp.math")
-            else:
-                self.frame.SetBorder((255, 0, 0))
-                self.frame.SetStatus("math_png failed")
-
-            return
-        else:
-            self.ProcessOutput()
-        
-        # Check math_svg process (only used for export)
-        if self.math_svg_process and self.math_svg_process.poll() is not None:
-            success = self.math_svg_process.returncode == 0
-            errors = self.math_svg_process.stderr.read()
-            if not errors:
-                errors = '\n\tNo errors.'
-            self.frame.SetOutput(errors)
-            self.math_svg_process = None
-            self.export = None
-            if success:
-                self.frame.SetBorder((0, 255, 0))
-                self.frame.SetStatus('.svg export successful')
-            else:
-                self.frame.SetBorder((255, 0, 0))
-                self.frame.SetStatus('.svg export failed')
-            return
-        
-        # Check math_stl process (only used for export)
-        if self.math_stl_process and self.math_stl_process.poll() is not None:
-            success = self.math_stl_process.returncode == 0
-            errors = self.math_stl_process.stderr.read()
-            if not errors:
-                errors = '\n\tNo errors.'
-            self.frame.SetOutput(errors)
-            self.math_stl_process = None
-            self.export = None
-            if success:
-                self.frame.SetBorder((0, 255, 0))
-                self.frame.SetStatus('.stl export successful')
-            else:
-                self.frame.SetBorder((255, 0, 0))
-                self.frame.SetStatus('.stl export failed')
-            return
-        
-        # Check math_stl process (only used for export)
-        if self.math_dot_process and self.math_dot_process.poll() is not None:
-            success = self.math_dot_process.returncode == 0
-            errors = self.math_dot_process.stderr.read()
-            if not errors:
-                errors = '\n\tNo errors.'
-            self.frame.SetOutput(errors)
-            self.math_dot_process = None
-            self.export = None
-            if success:
-                self.frame.SetBorder((0, 255, 0))
-                self.frame.SetStatus('.dot export successful')
-            else:
-                self.frame.SetBorder((255, 0, 0))
-                self.frame.SetStatus('.dot export failed')
-            return
-        
-        self.frame.BindTimer(self.CheckProcess)
-    
-    def ProcessOutput(self):
-        '''Monitors the output queue from the subprocess; updates the UI as needed.'''
-        update = None
-        while True:
+            # Make the image border red
+            wx.CallAfter(self.frame.SetBorder, (255, 0, 0))
+            
+            # Update the status line
             try:
-                update = self.output.get_nowait()
-            except Empty:
-                break
-
-        if not update:
-            return
+                wx.CallAfter(self.frame.MarkError, error_line - 1)
+                wx.CallAfter(self.frame.SetStatus,
+                             "cad_math failed (line %i)" % error_line)
+            except NameError:
+                wx.CallAfter(self.frame.SetStatus, "cad_math failed")
+                
+            return False
         
-        if self.export:
-            self.frame.SetStatus(update + " [export]")
-        else:
-            self.frame.SetStatus(update)
-
+        # If everything worked, then we return delete the temporary file
+        # and return True   
+        os.remove('_cad_ui_tmp.cad')
         return True
 
-    
-    def StartCadMath(self, highlight = False):
+################################################################################
+
+    def math_xyz(self, program, filename, resolution=None,
+                 event=threading.Event(), args = [],
+                 monitor = None):
         
-        if self.export:
-            self.frame.SetStatus("Converting to math string [export]")
+        ''' Generic function to run math_png, math_svg, math_stl, etc.
+        
+        '''
+        
+        if BUNDLED:
+            xyz_path = './%s' % program
         else:
-            self.frame.SetStatus("Converting to math string")
+            xyz_path = program
+        
+        if monitor is None:
+            monitor = self.progress_bar
+            minotaur = "RAWR!"
+        
+        if event.is_set(): return
+        
+        command = [xyz_path] + args + ['_cad_ui_tmp.math', filename]
+        if resolution: command += [str(resolution)]
+        
+        print '>>  ' + ' '.join(command)
+        process = subprocess.Popen(command, stdout=subprocess.PIPE,
+                                   stderr=subprocess.PIPE)
+        
+        monitor(process, event)
+        success = (process.returncode == 0)
+        errors = process.stderr.read()
+        
+        # One more chance to abort before updating the GUI
+        if event.is_set(): return
+                
+        if not success:
+            wx.CallAfter(self.frame.SetOutput, errors)
+            wx.CallAfter(self.frame.SetBorder, (255, 0, 0))
+            wx.CallAfter(self.frame.SetStatus, "%s failed" % program)
+            return False
+        
+        # If everything worked, then we delete the temporary file
+        # and return True
+        os.remove('_cad_ui_tmp.math')
+        return True
+    
+################################################################################
+
+    def math_png(self, resolution, filename = None, event = threading.Event(),
+                 incremental=None):
+    
+        # If we aren't saving to a particular file, use the default
+        if filename is None:
+            filename = '_cad_ui_tmp.png'
             
-        with open("_cad_ui_tmp.cad", 'w') as cad_file:
-            cad_file.write('from string import *\nfrom math import *\n')
-            if self.cadFileDir:
-                cad_file.write('import sys\nsys.path.append("%s")\n' % self.cadFileDir)
-            if highlight:
-                cad_file.write(self.frame.GetTextHighlight())
-            else:
-                cad_file.write(self.frame.GetText())
+        if incremental is None and not 'Linux' in os.uname():
+            incremental = not(self.cad.zmax - self.cad.zmin > 0)
         
+        return self.math_xyz('math_png', filename, resolution=resolution,
+                             event=event,
+                             args = ['--incremental'] if incremental else [],
+                             monitor = self.incremental)
 
-        # If we're bundled into an application, then use the local
-        # version of python to invoke cad_math
-        if self.export and self.export[0] == 'math':
-            target = self.export[1]
-        else:
-            target = "_cad_ui_tmp.math"
+################################################################################
+    
+    def math_stl(self, resolution, filename, event = threading.Event()):
+    
+        return self.math_xyz('math_stl', filename,
+                             resolution=resolution, event=event)
+        
+################################################################################
+    
+    def math_svg(self, resolution, filename, event = threading.Event()):
+    
+        return self.math_xyz('math_svg', filename,
+                             resolution=resolution, event=event)
+
+################################################################################
+    
+    def math_dot(self, filename, event = threading.Event()):
+    
+        return self.math_xyz('math_dot', filename, event=event)
+   
+################################################################################
+
+    def progress_bar(self, process, event):
+        ''' Waits for a process to finish, drawing a progress bar.
+        
+            Halts when the progress finishes or the event is set.
             
-        if APP_MODE:
-            cadMathRun = ['../MacOS/python','cad_math',"_cad_ui_tmp.cad",target]
-        else:
-            cadMathRun = ['cad_math', "_cad_ui_tmp.cad", target]
-        self.cad_math_process = subprocess.Popen(
-            cadMathRun,
-            stderr = subprocess.PIPE)
+        '''
         
-        # Check the process again in some time.
-        self.frame.BindTimer(self.CheckProcess)
-    
-    def StartMathPng(self):
-        if self.export:
-            self.frame.SetStatus("Parsing math string [export]")
-        else:
-            self.frame.SetStatus("Parsing math string")
-        
-        if self.export and self.export[0] == 'png':
-            target = self.export[1]
-            resolution = self.export[2]
-        else:
-            target = "_cad_ui_tmp.png"
-            resolution = self.PickResolution()
-        
-        # If we're bundled into an application, then use the local
-        # version of math_png
-        if APP_MODE:
-            mathPngPath = './math_png'
-        else:
-            mathPngPath = 'math_png'
-        args = [mathPngPath, "_cad_ui_tmp.math", target,
-                str(resolution), str(self.num_layers)]
-        self.math_png_process = subprocess.Popen(args, stdout = subprocess.PIPE,
-                                                 stderr = subprocess.PIPE)
-
-        self.output = Queue()
-
-        self.monitor = Thread(target = self.GetOutput)
-        self.monitor.daemon = True
-        self.monitor.start()
-        
-        self.frame.BindTimer(self.CheckProcess)
-    
-    def StartMathSvg(self):
-        self.frame.SetStatus("Converting math string to svg")
-        
-        if APP_MODE:
-            mathSvgPath = './math_svg'
-        else:
-            mathSvgPath = 'math_svg'
-        target, resolution = self.export[1], self.export[2]
-        args = [mathSvgPath, "_cad_ui_tmp.math", target, str(resolution)]
-        self.math_svg_process = subprocess.Popen(args, stdout = subprocess.PIPE,
-                                                 stderr = subprocess.PIPE)
-        self.frame.BindTimer(self.CheckProcess)
-    
-    def StartMathStl(self):
-        self.frame.SetStatus("Converting math string to stl")
-        
-        if APP_MODE:
-            mathStlPath = './math_stl'
-        else:
-            mathStlPath = 'math_stl'
-        target, resolution = self.export[1], self.export[2]
-        args = [mathStlPath, "_cad_ui_tmp.math", target, str(resolution)]
-        self.math_stl_process = subprocess.Popen(args, stdout = subprocess.PIPE,
-                                                 stderr = subprocess.PIPE)
-        self.frame.BindTimer(self.CheckProcess)
-    
-    def StartMathDot(self):
-        self.frame.SetStatus("Converting math string to dot")
-        
-        if APP_MODE:
-            mathDotPath = './math_dot'
-        else:
-            mathDotPath = 'math_dot'
-        target = self.export[1]
-        args = [mathDotPath, "_cad_ui_tmp.math", target]
-        self.math_dot_process = subprocess.Popen(args, stdout = subprocess.PIPE,
-                                                 stderr = subprocess.PIPE)
-        self.frame.BindTimer(self.CheckProcess)
-    
-    
-    # Small helper function to accumulate output from a subprocess
-    def GetOutput(self):
-        line = ''        
-        while True:
-            c = self.math_png_process.stdout.read(1)
-            if c == '':
+        line = ''
+        while process.poll() is None:
+            if event.is_set():
+                process.terminate()
                 return
+                
+            c = process.stdout.read(1)
+            if c == '\n' or c == '\r':
+                print repr(line)
+                if '[|' in line:
+                    line = line[4:]
+                    percent = (line.count('|') * 100) / (len(line) - 2)
+                    if percent < 100:
+                        wx.CallAfter(self.frame.SetStatus,
+                                     "Rendering (%i%%)" % percent)
+                    else:
+                        wx.CallAfter(self.frame.SetStatus,
+                                     "Writing output file")
+                else:
+                    print line
+                line = ''
+            else:
+                line = line + c
+
+################################################################################
+
+    def incremental(self, process, event):
+        ''' Waits for a process to finish, drawing a progress bar and
+            incremental render blobs.
+        
+            Halts when the progress finishes or the event is set.
+            
+        '''
+        
+        try:
+            dc = wx.MemoryDC(self.bitmap)
+            dc.SetPen(wx.TRANSPARENT_PEN)
+        except:
+            dc = None
+        
+        Y_MAX = (self.cad.ymax - self.cad.ymin) * self.cad.mm_per_unit*self.resolution
+
+        line = ''
+
+        if 'Linux' in os.uname():
+            regex = None
+        else:
+            regex = re.compile(
+                r'([0-9]+) ([0-9]+) ([0-9]+) ([0-9]+) (.)'
+            )
+        
+        while process.poll() is None:
+            if event.is_set():
+                process.terminate()
+                return
+                
+            c = process.stdout.read(1)
             if c == '\n' or c == '\r':
                 if '[|' in line:
                     line = line[4:]
-                    percentDone = (line.count('|') * 100) / (len(line) - 2)
-                    self.output.put("Rendering (%i%%)" % percentDone)
-                print line
+                    percent = (line.count('|') * 100) / (len(line) - 2)
+                    if percent < 100:
+                        wx.CallAfter(self.frame.SetStatus,
+                                     "Rendering (%i%%)" % percent)
+                    else:
+                        wx.CallAfter(self.frame.SetStatus,
+                                     "Writing output file")
+                elif regex and regex.match(line):
+                    xmin, xmax, ymin, ymax, color = regex.match(line).groups()
+                    xmin, xmax, ymin, ymax = map(int, (xmin, xmax, ymin, ymax))
+                    color = ord(color)
+                    if dc:
+                        dc.SetBrush(wx.Brush(wx.Colour(color, color, color)))
+                        dc.DrawRectangle(xmin, Y_MAX - ymax,
+                                         xmax-xmin, ymax-ymin)
+                        wx.CallAfter(self.frame.SetImage, self.bitmap)
+                else:
+                    print line
                 line = ''
-                continue
-            line = line + c
+            else:
+                line = line + c
+   
+################################################################################
     
-    def Render(self, e = None, highlight = False):
+    def Render(self, e = None):
         '''Attempt to render the .cad file into an image.'''
 
         # If this is an event callback, make sure that the box is checked.
         if e and not e.Checked():
             return
         
-        # If we're already rendering, stop the other render process.
-        if self.cad_math_process is not None:
-            self.cad_math_process.kill()
-            self.cad_math_process = None
-        if self.math_png_process is not None:
-            self.math_png_process.kill()
-            self.math_png_process = None
-
-        self.frame.ClearError()
-        self.frame.SetBorder((255, 165, 0))
-        if highlight:
-            self.cad.type = 'Highlight'
-        self.StartCadMath(highlight)
+        # Tell all of the existing threads to stop (politely)
+        self.stop_threads()
+        
+        # Start up a new thread to render and load the image.
+        self.start_thread(self.render)
         
 wx.Log.EnableLogging(False)
 app = CadUIApp()

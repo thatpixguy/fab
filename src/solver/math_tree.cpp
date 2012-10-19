@@ -6,14 +6,27 @@
 
 using namespace std;
 
+typedef boost::lock_guard<boost::mutex> lock_guard;
+
 MathTree::MathTree()
-    : root(NULL), levels(NULL), active_nodes(NULL), dNodes(NULL)
+    : root(NULL), levels(NULL), active_nodes(NULL), dNodes(NULL), parent(NULL)
 {
     // Nothing to do here
 }
 
 MathTree::~MathTree()
 {   
+    // If this tree is a clone, then notify the parent (because the parent will be
+    // waiting for this tree to be deleted before it can delete itself).
+    if (parent) {
+        lock_guard lock(parent->mutex);
+        parent->done = true;
+        parent->condition.notify_one();
+    }
+
+    // Make sure that all children have been deleted.
+    wait_for_clones();
+
     // Delete all nodes stored in the tree, from top to bottom (to prevent
     // issues due to reference subtraction)
     if (levels)
@@ -31,9 +44,10 @@ MathTree::~MathTree()
     delete [] dNodes;
 }
 
-MathTree* MathTree::clone() const
+MathTree* MathTree::clone()
 {
     MathTree* m = new MathTree();
+//    cout << "MathTree::clone() is cloning " << this << " to " << m << endl;
     m->num_levels = num_levels;
     m->levels = new Node**[num_levels];
     m->active_nodes = new int[num_levels];
@@ -54,7 +68,28 @@ MathTree* MathTree::clone() const
         m->root = m->levels[num_levels - 1][0];
     else
         m->root = root;
+    
+    clones.push_back(new ThreadComm());
+    m->parent = clones.back();
+    
     return m;
+}
+
+void MathTree::wait_for_clones()
+{
+    
+    // Go through the list, waiting for each of the children.
+    list<ThreadComm*>::iterator it = clones.begin();   
+    while (it != clones.end())
+    {
+        {
+            boost::unique_lock<boost::mutex> lock((**it).mutex);
+            while (!(**it).done)
+                (**it).condition.wait(lock);
+        }
+        delete *it;
+        it = clones.erase(it);
+    }
 }
 
 void MathTree::add(Node* n)
@@ -105,6 +140,12 @@ int MathTree::node_count() const
     return total;
 }
 
+int MathTree::constant_count() const
+{
+    return constants.size();
+}
+
+
 // Evaluate a single point
 void MathTree::eval(const float X,
                     const float Y,
@@ -136,10 +177,11 @@ void MathTree::push()
     
     // Keep track of how many nodes were removed from the tree
     // in the dNodes[i] stack.
+    
     for (int i = num_levels - 2; i >= 0; --i) {
         dNodes[i].push_back(0);
         for (int j = 0; j < active_nodes[i]; ++j) {
-            if (levels[i][j]->marked || levels[i][j]->is_ignored())
+            if (levels[i][j]->cacheable())
             {
                 levels[i][j]->deactivate();
                 swap(levels[i][j--], levels[i][--active_nodes[i]]);
@@ -153,11 +195,13 @@ void MathTree::pop()
 {
     // Increase the number of active nodes in the arrays so that
     // previous cached nodes are now evaluated.
+    
     for (int i = 0; i < num_levels - 1; ++i) {
     
         // Activate each of the previously disabled nodes.
-        for (int n = 0; n < dNodes[i].back(); ++n)
+        for (int n = 0; n < dNodes[i].back(); ++n) {
             levels[i][active_nodes[i]++]->activate();
+        }
         dNodes[i].pop_back();
     }
 }

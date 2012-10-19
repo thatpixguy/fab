@@ -70,8 +70,16 @@ class cad_stl_panel(wx.Panel):
          os.system(command)
          info = stl_info(self.parent.stl_file)
          self.info.SetLabel(cad_info+info)
+         self.button.Show()
          self.parent.Layout()
          self.parent.Fit()
+      #
+      # send
+      #
+      def fab_send(event):
+         command = 'fab_send '+'\"'+self.parent.stl_file+'\"'
+         print command
+         os.system(command)
       #
       # panel
       #
@@ -86,12 +94,13 @@ class cad_stl_panel(wx.Panel):
       label.SetFont(bold_font)
       self.sizer.Add(label,(0,0),flag=wx.ALIGN_CENTER_HORIZONTAL)
       #
-      # image
+      # send
       #
-      image = wx.ArtProvider.GetBitmap(wx.ART_QUESTION, wx.ART_OTHER, (self.parent.size,self.parent.size))
-      self.bitmap = wx.StaticBitmap(self,-1,image)
-      self.sizer.Add(self.bitmap,(1,0),flag=(wx.ALIGN_CENTER_HORIZONTAL|wx.ALIGN_CENTER_VERTICAL))
-      self.bitmap.Hide()
+      self.button = wx.Button(self,label='send it!')
+      self.button.Bind(wx.EVT_BUTTON,fab_send)
+      self.button.SetFont(bold_font)
+      self.sizer.Add(self.button,(1,0),flag=(wx.ALIGN_CENTER_HORIZONTAL|wx.ALIGN_CENTER_VERTICAL))
+      self.button.Hide()
       #
       # controls
       #

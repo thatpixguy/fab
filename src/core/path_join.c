@@ -16,9 +16,12 @@ main(int argc, char **argv) {
    //
    // local vars
    //
-   struct fab_vars vin1 = init_vars(&vin1);
-   struct fab_vars vin2 = init_vars(&vin2);
-   struct fab_vars vout = init_vars(&vout);
+   struct fab_vars vin1;
+   init_vars(&vin1);
+   struct fab_vars vin2;
+   init_vars(&vin2);
+   struct fab_vars vout;
+   init_vars(&vout);
    float dx,dy;
    //
    // command line args

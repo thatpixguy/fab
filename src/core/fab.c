@@ -16,30 +16,26 @@
 // initialization
 //
 
-struct fab_vars init_vars() {
+void init_vars(struct fab_vars *v) {
    //
-   // fab_vars constructor
+   // fab_vars initialization
    //
-   struct fab_vars v;
-   //
-   v.empty = 0;
-   v.interior = 1;
-   v.edge = (1 << 1);
-   v.north = (1 << 2);
-   v.west = (2 << 2);
-   v.east = (3 << 2);
-   v.south = (4 << 2);
-   v.stop = (5 << 2);
-   v.corner = (6 << 2);
-   v.corner2 = (7 << 2);
-   v.direction = (7 << 2);
-   v.g = 0;
-   v.h = 0;
-   v.distances = 0;
-   v.starts= 0;
-   v.minimums= 0;
-   //
-   return v;
+   v->empty = 0;
+   v->interior = 1;
+   v->edge = (1 << 1);
+   v->north = (1 << 2);
+   v->west = (2 << 2);
+   v->east = (3 << 2);
+   v->south = (4 << 2);
+   v->stop = (5 << 2);
+   v->corner = (6 << 2);
+   v->corner2 = (7 << 2);
+   v->direction = (7 << 2);
+   v->g = 0;
+   v->h = 0;
+   v->distances = 0;
+   v->starts= 0;
+   v->minimums= 0;
    }
 
 void fab_limits(struct fab_vars *v, float *vertex) {
@@ -497,80 +493,6 @@ void fab_write_path(struct fab_vars *v, char *output_file_name) {
    printf("   xmin: %f, ymin: %f, zmin: %f\n",v->xmin,v->ymin,v->zmin);
    }
 
-void fab_write_ps(struct fab_vars *v, char *output_file_name) {
-   //
-   // write path to PostScript file
-   //
-   int x,y,z,current_z;
-   float margin = 0.5; // lower left margin, in inches
-   float gray;
-	FILE *output_file;
-   int nsegs=0, npts=0;
-   float scale;
-   output_file = fopen(output_file_name,"w");
-   fprintf(output_file,"%%! path_ps output\n");
-   fprintf(output_file,"%%%%BoundingBox: %f %f %f %f\n",72.0*margin,72.0*margin,
-      72.0*(margin+v->dx/25.4),72.0*(margin+v->dy/25.4));
-   fprintf(output_file,"/m {moveto} def\n");
-   fprintf(output_file,"/l {lineto} def\n");
-   fprintf(output_file,"/g {setgray} def\n");
-   fprintf(output_file,"/s {stroke} def\n");
-   fprintf(output_file,"72 72 scale\n");
-   fprintf(output_file,"%f %f translate\n",margin,margin);
-   fprintf(output_file,"1 setlinewidth\n");
-   scale = v->dx/(25.4*(v->nx-1.0));
-   fprintf(output_file,"%f %f scale\n",scale,scale);
-   current_z = 0;
-   fprintf(output_file,"0 g\n");
-   v->path->segment = v->path->first;
-   while (1) {
-      //
-      // follow segments
-      //
-      v->path->segment->point = v->path->segment->first;
-      x = v->path->segment->point->first->value;
-      y = v->ny - v->path->segment->point->first->next->value;
-      if (v->path->dof == 3) {
-         z = v->path->segment->point->first->next->next->value;
-         if (z != current_z) {
-            gray = 0.9 * z / (v->nz - 1.0);
-            fprintf(output_file,"%.3f g\n",gray);
-            current_z = z;
-            }
-         }
-      fprintf(output_file,"%d %d m\n",x,y);
-      nsegs += 1;
-      while (1) {
-         //
-         // follow points
-         //
-         if (v->path->segment->point->next == 0)
-            break;
-         v->path->segment->point = v->path->segment->point->next;
-         x = v->path->segment->point->first->value;
-         y = v->ny - v->path->segment->point->first->next->value;
-         fprintf(output_file,"%d %d l\n",x,y);
-         if (v->path->dof == 3) {
-            z = v->path->segment->point->first->next->next->value;
-            if (z != current_z) {
-               gray = 0.9 * 0.5 * (z + current_z) / (v->nz - 1.0);
-               fprintf(output_file,"s %.3f g %d %d m\n",gray,x,y);
-               current_z = z;
-               }
-            }
-         npts += 1;
-         }
-      fprintf(output_file,"s\n");
-      if (v->path->segment->next == 0)
-         break;
-      v->path->segment = v->path->segment->next;
-      }
-   fprintf(output_file,"showpage\n");
-   fclose(output_file);
-   printf("write %s\n",output_file_name);
-   printf("   segments: %d, points: %d\n",nsegs,npts);
-   }
-
 //
 // shading
 //
@@ -940,6 +862,7 @@ void fab_png_array(struct fab_vars *v) {
    png_byte *ptr;
    png_colorp palette;
    png_color color;
+   png_uint_32 num_palette;
    
    if (png_get_bit_depth(v->png_ptr, v->info_ptr) == 1) {
       if (png_get_color_type(v->png_ptr, v->info_ptr) == PNG_COLOR_TYPE_PALETTE)
@@ -949,7 +872,7 @@ void fab_png_array(struct fab_vars *v) {
                bit = 7 - x % 8;
                ptr = &(v->row_pointers[y][byte]);
                value = (ptr[0] >> bit) & 1;
-               png_get_PLTE(v->png_ptr, v->info_ptr, &palette, NULL);
+               png_get_PLTE(v->png_ptr, v->info_ptr, &palette, &num_palette);
                color = palette[value];
                intensity = (color.red + color.green + color.blue)/3.0;
          	   v->array[y][x] = intensity;
@@ -997,7 +920,7 @@ void fab_png_array(struct fab_vars *v) {
          for (y = 0; y < v->ny; ++y)
             for (x = 0; x < v->nx; ++x) {
          		value = v->row_pointers[y][x];
-               png_get_PLTE(v->png_ptr, v->info_ptr, &palette, NULL);
+               png_get_PLTE(v->png_ptr, v->info_ptr, &palette, &num_palette);
                color = palette[value];
                intensity = (color.red + color.green + color.blue)/3.0;
          	   v->array[y][x] = intensity;

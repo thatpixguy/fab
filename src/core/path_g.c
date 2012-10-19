@@ -169,7 +169,8 @@ main(int argc, char **argv) {
    //
    // local vars
    //
-   struct fab_vars v = init_vars(&v);
+   struct fab_vars v;
+   init_vars(&v);
    float z_jog,feed_rate,z_feed_rate,spindle_speed;
    int direction,tool,coolant;
    //

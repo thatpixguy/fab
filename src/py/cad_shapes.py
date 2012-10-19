@@ -57,6 +57,9 @@
 #   scale_xy(part, x0, y0, sxy)
 #   scale_xyz(part, x0, y0, z0, sxyz)
 
+# Distortion:
+#   attract(part, value, x0, y0, z0=0)
+
 # Coscaling:
 #   coscale_x_y(part, x0, y0, y1, angle0, angle1, amplitude, offset)
 #   coscale_x_z(part, x0, z0, z1, angle0, angle1, amplitude, offset)
@@ -344,6 +347,28 @@ def scale_xyz(part, x0, y0, z0, sxyz):
    return part
 
 ###############################################################################
+#   Distortion:
+###############################################################################
+
+def attract(part, radius, x0, y0, z0=0):
+    part = part.replace('X',
+    ('({x0}+(X-{x0})*(1+{r}*exp(-pow(X-{x0},2)+'+
+    'pow(yt-{y0},2)+pow(zt-{z0},2)/{r})))').format(
+        x0=x0,y0=y0,z0=z0,r=radius))
+    part = part.replace('Y',
+    ('({y0}+(Y-{y0})*(1+{r}*exp(-pow(xt-{x0},2)+'+
+    'pow(Y-{y0},2)+pow(zt-{z0},2)/{r})))').format(
+        x0=x0,y0=y0,z0=z0,r=radius))
+    part = part.replace('Z',
+    ('({z0}+(Z-{z0})*(1+{r}*exp(-pow(xt-{x0},2)+'+
+    'pow(yt-{y0},2)+pow(Z-{z0},2)/{r})))').format(
+        x0=x0,y0=y0,z0=z0,r=radius))
+    part = part.replace('xt','X')
+    part = part.replace('yt','Y')
+    part = part.replace('zt','Z')
+    return part
+
+###############################################################################
 #   Coscaling
 ###############################################################################
 
@@ -469,4 +494,4 @@ tan = (60 << 16) + (90 << 8) + (125 << 0)
 black = 0
 
 def color(color, part):
-    return '(%s * ((%s)!=0))' % (color, part)
+    return MString('(%s * (%s))' % (color, part))

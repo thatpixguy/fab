@@ -1,10 +1,15 @@
 #ifndef SWITCHES_H
 #define SWITCHES_H
 
-#define COMBINE_NODES 1 // Combine identical nodes while parsing
-#define PRUNE_TREE 1    // Remove nodes as they are proved useless
-#define MULTITHREADED 1 // Take advantage of multiple cores
-#define SIMPLIFY_TREE 1 // Combine arithmetic null operations
-#define CULL_Z 1        // Ignore occluded pixels
+// This header defines compile-time switches that turn on
+// or off various optimizations.  Optimizations are on when
+// a switch is 1 and off when a switch is 0.
+
+#define COMBINE_NODES 1
+#define PRUNE_TREE 1
+#define MINMAX_PRUNE 1
+#define MULTITHREADED 1
+#define SIMPLIFY_TREE 1
+#define CULL_Z 1
 
 #endif

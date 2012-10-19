@@ -8,18 +8,49 @@
 #include "region.hpp"
 
 using namespace std;
-FabVars::FabVars(output_mode o)
+FabVars::FabVars(output_mode o, int argc, char** argv)
     : ni(-1), nj(-1), nk(-1),
       min_volume(-1),
-      dx(0), dy(0), dz(0),
       xmin(0), ymin(0), zmin(0),
+      dx(0), dy(0), dz(0),
       pixels_per_mm(10), mm_per_unit(-1), quality(8),
       decimation_error(1),
       mode(SOLVE_BOOL), output(o),
       infile_name(""), outfile_name(""),
       red(NULL), green(NULL), blue(NULL), intensity(NULL)
 {
-    // Nothing to do here.
+
+    infile_name = argv[0];
+    outfile_name = argv[1];
+
+    // The different programs have different input argument orders.
+    if (output == OUTPUT_PNG) {
+        pixels_per_mm = 10;
+        if (argc >= 3)
+            pixels_per_mm = atof(argv[2]);
+        if (argc >= 4)
+            nk = atoi(argv[3]);
+    }
+    else if (output == OUTPUT_STL) {
+        pixels_per_mm = 10;
+        if (argc >= 3)
+            pixels_per_mm = atof(argv[2]);
+        if (argc >= 4)
+            quality = atoi(argv[3]);
+    } else if (output == OUTPUT_SVG) {
+        pixels_per_mm = 10;
+        if (argc >= 3)
+            pixels_per_mm = atof(argv[2]);
+        if (argc >= 4)
+            nk = atoi(argv[3]);
+        if (argc >= 5)
+            decimation_error = atof(argv[4]);
+        if (argc >= 6)
+            quality = atoi(argv[7]);
+    }
+    
+    // Load data from the input file
+    load();
 }
 
 FabVars::~FabVars()
@@ -89,13 +120,20 @@ void FabVars::load()
 
     ni = dx * mm_per_unit * pixels_per_mm;
     nj = dy * mm_per_unit * pixels_per_mm;
-    if (nk == -1)
-        nk = dz * mm_per_unit * pixels_per_mm;
+    // Default Z slices: 10 for SVG output, equivalent resolution
+    // for other output modes.
+    if (nk == -1) {
+        if (output == OUTPUT_SVG)
+            nk = dz ? 10 : 1;
+        else
+            nk = dz * mm_per_unit * pixels_per_mm;
+    }
     
     // Make sure that these are all non-zero.
     ni = ni ? ni : 1;
     nj = nj ? nj : 1;
     nk = nk ? nk : 1;
+    pb.full = ni*nj*nk;
     
     // Pick a minimum volume below which we won't do
     // octree recursion.
@@ -140,6 +178,8 @@ void FabVars::load()
     }
 }
 
+////////////////////////////////////////////////////////////////////////////////
+
 float FabVars::x(float i) const
 {
     return xmin + dx*i / float(ni);
@@ -154,6 +194,8 @@ float FabVars::z(float k) const
 {
     return zmin + dz*k / float(nk);
 }
+
+////////////////////////////////////////////////////////////////////////////////
 
 FabInterval FabVars::x(float imin, float imax) const
 {
@@ -180,6 +222,8 @@ float FabVars::scale(unsigned int k) const
     return k/float(nk - 1) * (mode == SOLVE_BOOL ? 65535 : 1);
 }
 
+////////////////////////////////////////////////////////////////////////////////
+
 void FabVars::fill(Region r)
 {
     float s = scale(r.kmax - 1);
@@ -203,12 +247,8 @@ void FabVars::fill(Region r, unsigned char R, unsigned char G, unsigned char B)
         }
 }
 
-void FabVars::add_triangle(Vec3f v1, Vec3f v2, Vec3f v3)
-{
-    geometry_lock.lock();
-    triangles.push_back(Triangle(v1, v2, v3));
-    geometry_lock.unlock();
-}
+////////////////////////////////////////////////////////////////////////////////
+
 void FabVars::add_triangles(std::list<Triangle> tris)
 {
     geometry_lock.lock();
@@ -227,6 +267,8 @@ void FabVars::add_paths(const PathSet& p)
     geometry_lock.unlock();
 }
 
+////////////////////////////////////////////////////////////////////////////////
+
 void FabVars::write_png()
 {
     if (mode == SOLVE_BOOL)
@@ -235,20 +277,12 @@ void FabVars::write_png()
         fab_write_png_RGB24(this, outfile_name.c_str());
 }
 
-void FabVars::write_png(string filename)
-{
-    if (mode == SOLVE_BOOL)
-        fab_write_png_K16(this, filename.c_str());
-    else if (mode == SOLVE_RGB)
-        fab_write_png_RGB24(this, filename.c_str());
-}
-
 void FabVars::write_stl()
 {
     fstream stl_out;
     stl_out.open(outfile_name.c_str(), fstream::trunc | fstream::out);
     
-    // The first 80 characters are undefined, so let's leave an informative message.
+    // The first 80 characters are undefined, so let's leave an informative message!
     stl_out << "This is a binary STL file created by math_stl. Learn more at kokompe.cba.mit.edu";
     stl_out << "    ";
 

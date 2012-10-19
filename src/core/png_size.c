@@ -21,7 +21,8 @@ main(int argc, char **argv) {
    //
    // local vars
    //
-   struct fab_vars v = init_vars(&v);
+   struct fab_vars v;
+   init_vars(&v);
    float dx,dy;
    //
    // command line args

@@ -6,7 +6,8 @@
 #include <boost/numeric/interval.hpp>
 #include <boost/logic/tribool.hpp>
 
-// We are using a specific type of Boost interval
+// We are using a specific type of Boost interval, which we define
+// in this unreasonably long typedef.
 typedef boost::numeric::interval<float,
     boost::numeric::interval_lib::policies<
         boost::numeric::interval_lib::save_state_nothing<
@@ -16,11 +17,14 @@ typedef boost::numeric::interval<float,
     >
 > FabInterval;
 
+// Interval comparisons should be done with tribool logic.
 #include <boost/numeric/interval/compare/tribool.hpp>
 using namespace boost::numeric::interval_lib::compare::tribool;
 
-// Code below is from Ara, edited to make it templated
-// (so it matches the rest of the boost stuff)
+/* interval atan2(interval y, interval x)
+ *
+ *  Computes atan2 of two intervals.
+ */
 template<class T, class Policies>
 boost::numeric::interval<T, Policies> atan2(
     const boost::numeric::interval<T, Policies>& y,
@@ -66,6 +70,11 @@ boost::numeric::interval<T, Policies> atan2(
     }
 }
 
+/* interval sgn(interval x)
+ *
+ *  Returns the sign of the input interval, which is either -1, 1, 0, or
+ *  interval(-1, 1)
+ */
 template<class T, class Policies>
 boost::numeric::interval<T, Policies> sgn(
     const boost::numeric::interval<T, Policies>& x)
@@ -80,6 +89,10 @@ boost::numeric::interval<T, Policies> sgn(
         return boost::numeric::interval<T, Policies>(-1, 1);
 }
 
+/* ostream& operator<<(ostream& o, interval& i)
+ *
+ *  Prints an interval
+ */
 template <class T, class P>
 std::ostream& operator<<(std::ostream& o, const boost::numeric::interval<T,P>& i)
 {

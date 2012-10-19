@@ -24,7 +24,7 @@ void fab_write_camm(struct fab_vars *v, char *output_file_name, float force, flo
    scale = 40.0*v->dx/(v->nx-1.0); // 40/mm
    xoffset = 40.0*v->xmin;
    yoffset = 40.0*v->ymin;
-   v->path->segment = v->path->first;
+   v->path->segment = v->path->last;
    while (1) {
       //
       // follow segments
@@ -48,9 +48,9 @@ void fab_write_camm(struct fab_vars *v, char *output_file_name, float force, flo
          npts += 1;
          }
       fprintf(output_file,"\n",x,y);
-      if (v->path->segment->next == 0)
+      if (v->path->segment->previous == 0)
          break;
-      v->path->segment = v->path->segment->next;
+      v->path->segment = v->path->segment->previous;
       }
    fprintf(output_file,"PU0,0;\n");
    fclose(output_file);
@@ -62,7 +62,8 @@ main(int argc, char **argv) {
    //
    // local vars
    //
-   struct fab_vars v = init_vars(&v);
+   struct fab_vars v;
+   init_vars(&v);
    float xmin,ymin,force,velocity;
    //
    // command line args

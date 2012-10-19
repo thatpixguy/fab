@@ -89,7 +89,7 @@ struct fab_mesh_triangle_type {
 //
 // initialization
 //
-struct fab_vars init_vars();
+void init_vars(struct fab_vars *v);
 //
 // input
 //
@@ -104,7 +104,6 @@ void fab_read_path(struct fab_vars *v, char *input_file_name);
 void fab_write_png_K(struct fab_vars *v, char *output_file_name);
 void fab_write_array(struct fab_vars *v, char *output_file_name);
 void fab_write_path(struct fab_vars *v, char *output_file_name);
-void fab_write_ps(struct fab_vars *v, char *output_file_name);
 //
 // shading
 //

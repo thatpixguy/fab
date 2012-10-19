@@ -73,12 +73,14 @@ Node* Node::make(opcode operation)
 
 void Node::deactivate()
 {
-    marked = true;
+    // If we clone this node, then we want to be pointing back here
+    // (not to a previous clone address).
+    clone_address = this;
 }
 
 void Node::activate()
 {
-    marked = false;
+    // Nothing to do here
 }
 
 void Node::dot(ostream& o) const
@@ -115,15 +117,14 @@ Node* UnaryNode::clone()
 
 void UnaryNode::deactivate()
 {
-    if (child->sub_ref() == 0)
-        child->marked = true;
+    Node::deactivate();
+    child->sub_ref();
 }
 
 void UnaryNode::activate()
-{
-    marked = false;
-    
+{  
     child->add_ref();
+    Node::activate();
 }
 
 bool UnaryNode::operator==(const Node& rhs)
@@ -166,6 +167,11 @@ void UnaryNode::set_child(Node* child_)
     }
 }
 
+bool UnaryNode::null_children() const
+{
+    return child == NULL;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 BinaryNode::BinaryNode(opcode operation)
@@ -185,18 +191,16 @@ Node* BinaryNode::clone()
 
 void BinaryNode::deactivate()
 {
-    if (left->sub_ref() == 0)
-        left->marked = true;
-    if (right->sub_ref() == 0)
-        right->marked = true;
+    Node::deactivate();
+    left->sub_ref();
+    right->sub_ref();
 }
 
 void BinaryNode::activate()
 {
-    marked = false;
-    
     left->add_ref();
     right->add_ref();
+    Node::activate();
 }
 
 bool BinaryNode::operator==(const Node& rhs)
@@ -259,6 +263,11 @@ void BinaryNode::set_children(Node* left_, Node* right_)
 
 }
 
+bool BinaryNode::null_children() const
+{
+    return left == NULL || right == NULL;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 NonaryNode::NonaryNode(opcode operation)
@@ -274,12 +283,12 @@ Node* NonaryNode::clone()
 }
 
 void NonaryNode::deactivate() {
-    // Nothing to do here.
+    Node::deactivate();
 }
 
 void NonaryNode::activate() 
 {
-    marked = false;
+    Node::activate();
 }
 
 bool NonaryNode::operator==(const Node& rhs)
@@ -290,4 +299,9 @@ bool NonaryNode::operator==(const Node& rhs)
 void NonaryNode::print(ostream& o) const
 {
     o << operation;
+}
+
+bool NonaryNode::null_children() const
+{
+    return false;
 }

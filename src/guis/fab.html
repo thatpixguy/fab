@@ -11,13 +11,13 @@ Permission granted for experimental and personal use;
 license for commercial sale available from MIT.
 
 todo
-   bend fixed angle, size
-   bend 360+
-   bend x,y
-   warp
-   image resolution preference
+   view limits graph redraw
+   arrow keys on menus
+   constrained moves
+   align node groups
+   uniform scale
    draw grid
-   xyz unlink bug
+   unlink bugs
    chamfer
    paths
    side text pane
@@ -28,8 +28,7 @@ todo
    .fab save/read format
    file directories 
    help
-   gik.fab
-   math.png view rotation
+   .math view rotation
    xmlhttp name fields
    undo
    .path view
@@ -63,7 +62,7 @@ todo
       display="none" xlink:href="">
 </svg>
 <script type="text/javascript">
-   date = "alpha 7/17/12"
+   date = "alpha 9/26/12"
    svgNS = "http://www.w3.org/2000/svg"
    xlinkNS="http://www.w3.org/1999/xlink"
    window_width = window.innerWidth
@@ -1937,14 +1936,14 @@ node.out(#).z = node.z + node.out(#).z - node.last.z;\n",
       //
       // operators menu
       //
-      names = ["(a)dd","(s)ubtract","(i)ntersect","in(v)ert"]
+      names = ["(a)dd","(s)ubtract","(i)ntersect","in(v)ert","(c)learance"]
       menu(1*menu_width,2*menu_height,menu_width,menu_height,names)
       }
    function transform_menu(evt) {
       //
       // transforms menu
       //
-      names = ["(d)uplicate","(t)ranslate","(o)rigin","(color)","rotate (x)","rotate (y)","rotate (z)","mirror x","mirror y","mirror z","reflect xy","reflect xz","reflect yz","(e)xtrude","(s)cale xy", "s(c)ale xyz","taper x y","taper xy z","shear x y","shear xy z","twist xy z","revolve y","(bend x)","(bend z)","bend z","(w)arp z","loft z","fillet","(chamfer)","morph","(r)epel","(a)ttract","(l)inear array","ra(d)ial array"]
+      names = ["(d)uplicate","(t)ranslate","(o)rigin","(color)","rotate (x)","rotate (y)","rotate (z)","mirror x","mirror y","mirror z","reflect xy","reflect xz","reflect yz","(e)xtrude","(s)cale xy", "s(c)ale xyz","taper x y","taper xy z","shear x y","shear xy z","twist xy z","revolve y","bend z","(w)arp z","loft z","morph","thicken","thin","amplitude","shell","fillet","(chamfer)","(r)epel","(a)ttract","(l)inear array","ra(d)ial array"]
       menu(2*menu_width,2*menu_height,menu_width,menu_height,names)
       }
    function edit_menu(evt) {
@@ -1966,7 +1965,7 @@ node.out(#).z = node.z + node.out(#).z - node.last.z;\n",
       //
       // file menu
       //
-      names = ["(o)pen .fab","(s)ave .fab","(export .math)","(export .stl)","(export .png)","(quit)"]
+      names = ["(o)pen .fab","(s)ave .fab","(export .(m)ath)","(export .s(v)g)","(export .s(t)l)","(export .(p)ng)","(quit)"]
       menu(5*menu_width,2*menu_height,menu_width,menu_height,names)
       }
    function library_menu(evt) {
@@ -2015,59 +2014,54 @@ node.out(#).z = node.z + node.out(#).z - node.last.z;\n",
             }
 	      }
       }
-   function open_handler(xmlhttp) {
+   function fab_open_handler(xmlhttp) {
       //
-      // file open response handler
+      // .fab file open response handler
       //
       if (xmlhttp.readyState == 4) {
          graph.fromstring(xmlhttp.responseText)
-         msg("opened "+file_name)
+         msg("opened "+file_name+".fab")
          }
       }
-   function list_handler(filename) {
+   function fab_list_handler(filename) {
       //
-      // file list form handler
+      // .fab file list form handler
       //
       win.close()
       xmlhttp=new XMLHttpRequest();
-      xmlhttp.onreadystatechange = function() {open_handler(xmlhttp); };
+      xmlhttp.onreadystatechange = function() {fab_open_handler(xmlhttp); };
       xmlhttp.open('POST','/open',true)
       xmlhttp.setRequestHeader("Content-type","application/x-www-form-urlencoded");
-      xmlhttp.send("{"+filename+"}");
+      xmlhttp.send("{"+filename+".fab}");
       file_name = filename
       }
-   function list_response(xmlhttp) {
+   function fab_list_response(xmlhttp) {
       //
-      // file list response handler
+      // .fab file list response handler
       //
       if (xmlhttp.readyState == 4) {
          files = xmlhttp.responseText.split(',')
          if (files.length > 0) {
             files[0] = files[0].substr(1)
-            /*
-            new_file_name = prompt("files: "+files,file_name)
-            if ((new_file_name != "") && (new_file_name != null)) {
-               file_name = new_file_name
-               list_handler(file_name)
-               }
-            */
             win = open('','fab')
             win.document.write('.fab files:<br>')
             for (var f in files) {
                file_name = files[f]
-               if (file_name.indexOf(".fab") != -1)
-                  win.document.write("<button type='button' onclick='window.opener.list_handler(\""+file_name+"\")'>"+file_name+"</button><br>")
+               if (file_name.indexOf(".fab") != -1) {
+                  file_base_name = file_name.slice(0,file_name.length-4)
+                  win.document.write("<button type='button' onclick='window.opener.fab_list_handler(\""+file_base_name+"\")'>"+file_name+"</button><br>")
+                  }
                }
             win.document.close()
             }
          }
       }
-   function save_response(xmlhttp) {
+   function fab_save_response(xmlhttp) {
       //
-      // save response handler
+      // .fab save response handler
       //
       if (xmlhttp.readyState == 4) {
-         msg("saved "+file_name)
+         msg("saved "+file_name+".fab")
          }
       }
    function action(evt) {
@@ -3208,6 +3202,9 @@ node.output['part#'] = part;"
       // operators
       //
       else if (label == 'menu_(a)dd') {
+         //
+         // add
+         //
          name = "add"
          x = 0
          y = 0
@@ -3228,6 +3225,9 @@ if (node.input['part0'] != undefined) {\n\
          message = "node location?"
          }
       else if (label == 'menu_(s)ubtract') {
+         //
+         // subtract
+         //
          name = "subtract"
          x = 0
          y = 0
@@ -3258,7 +3258,7 @@ if (node.input['part0'] != undefined) {\n\
    for (var n in Object.keys(node.input)) {\n\
       key = Object.keys(node.input)[n];\n\
       if ((key.indexOf('part') != -1) && (key != 'part0'))\n\
-         part = 'max('+part+','+node.input[key]+');'\n\
+         part = 'max('+part+','+node.input[key]+')'\n\
       }\n\
    node.output['part#'] = part;\n\
    }"
@@ -3277,6 +3277,54 @@ node.output['part#'] = '(-('+node.input['part0']+'))';"
          invert = graph.add_node(name,x,y,z,1,code)
          graph.update(invert.index)
          selected_node = invert.index
+         message = "node location?"
+         }
+      else if (label == 'menu_(c)learance') {
+         //
+         // clearance
+         //
+         name = "clearance"
+         x = 0
+         y = 0
+         z = 0
+         code = "\
+node.out(0).x = node.x + node.out(0).x - node.last.x;\n\
+node.out(0).y = node.y + node.out(0).y - node.last.y;\n\
+node.out(0).z = node.z + node.out(0).z - node.last.z;\n\
+if (node.input['part0'] != undefined) {\n\
+   node.output = node.input;\n\
+   }"
+         clearance = graph.add_node(name,x,y,z,1,code)
+         //
+         // amount
+         //
+         name = "amount"
+         x = node_offset
+         y = node_offset
+         z = 0
+         code = "\
+if (node.input['part0'] != undefined) {\n\
+   dx = node.x - node.in(0).x;\n\
+   dy = node.y - node.in(0).y;\n\
+   dz = node.z - node.in(0).z;\n\
+   r = Math.sqrt(dx*dx+dy*dy+dz*dz);\n\
+   part = node.input['part0'];\n\
+   for (var n in Object.keys(node.input)) {\n\
+      key = Object.keys(node.input)[n];\n\
+      if ((key.indexOf('part') != -1) && (key != 'part0'))\n\
+         part = 'max('+part+',-('+node.input[key]+')+'+number(r)+'/10.0)';\n\
+      }\n\
+   for (var n in Object.keys(node.input)) {\n\
+      key = Object.keys(node.input)[n];\n\
+      if ((key.indexOf('part') != -1) && (key != 'part0'))\n\
+          part = 'min('+part+','+node.input[key]+')';\n\
+      }\n\
+   node.output['part#'] = part;\n\
+   }"
+         amount = graph.add_node(name,x,y,z,-1,code)
+         graph.link(clearance.index,amount.index,"","")
+         graph.update(clearance.index)
+         selected_node = clearance.index
          message = "node location?"
          }
       //
@@ -4279,9 +4327,9 @@ if (part != undefined) {\n\
          }
       else if (label == 'menu_(w)arp z') {
          //
-         // start
+         // radius
          //
-         name = "start"
+         name = "radius"
          x = 0
          y = 0
          z = 0
@@ -4294,14 +4342,12 @@ node.output['y0'] = node.y;\n\
 part = node.input['part0'];\n\
 if (part != undefined) {\n\
    node.output['part#'] = part;\n\
-   node.output['xin'] = node.in(0).x;\n\
-   node.output['yin'] = node.in(0).y;\n\
    }"
-         start_node = graph.add_node(name,x,y,z,1,code)
+         radius_node = graph.add_node(name,x,y,z,1,code)
          //
-         // radius
+         // origin 
          //
-         name = "radius"
+         name = "origin"
          x = 0
          y = -node_offset
          z = 0
@@ -4323,11 +4369,9 @@ if (r > 0) {\n\
    }\n\
 part = node.input['part0'];\n\
 if (part != undefined) {\n\
-   node.output['xin'] = node.input['xin'];\n\
-   node.output['yin'] = node.input['yin'];\n\
    node.output['part#'] = part;\n\
    }"
-         radius_node = graph.add_node(name,x,y,z,1,code)
+         origin_node = graph.add_node(name,x,y,z,1,code)
          //
          // warp z
          //
@@ -4345,28 +4389,218 @@ px0 = -ny0;\n\
 py0 = nx0;\n\
 x1 = node.in(0).x;\n\
 y1 = node.in(0).y;\n\
-x2 = node.x;\n\
-y2 = node.y;\n\
-dx = x2 - x1;\n\
-dy = y2 - y1;\n\
-r = Math.sqrt(dx*dx+dy*dy);\n\
 if (r0 > 0) {\n\
-   nx1 = dx/r;\n\
-   ny1 = dy/r;\n\
-   node.x = x1 + r0*nx1;\n\
-   node.y = y1 + r0*ny1;\n\
+   x2 = node.x;\n\
+   y2 = node.y;\n\
+   dx2 = x2-x1;\n\
+   dy2 = y2-y1;\n\
+   r2 = Math.sqrt(dx2*dx2+dy2*dy2);\n\
+   nx2 = dx2/r2;\n\
+   ny2 = dy2/r2;\n\
+   node.x = x1 + r0*nx2;\n\
+   node.y = y1 + r0*ny2;\n\
+   x2 = node.x;\n\
+   y2 = node.y;\n\
+   dx2 = x2-x1;\n\
+   dy2 = y2-y1;\n\
+   r2 = Math.sqrt(dx2*dx2+dy2*dy2);\n\
+   nx2 = dx2/r2;\n\
+   ny2 = dy2/r2;\n\
+   px2 = -ny2;\n\
+   py2 = nx2;\n\
+   dx0 = x0-x1;\n\
+   dy0 = y0-y1;\n\
+   theta0 = angle(dx0,dy0);\n\
+   theta2 = angle(dx2,dy2);\n\
+   theta = theta2 - theta0;\n\
+   if (theta > 0) {\n\
+      px0 = -px0;\n\
+      py0 = -py0;\n\
+      px2 = -px2;\n\
+      py2 = -py2;\n\
+      theta = -theta;\n\
+      }\n\
+   x3 = x0 + px0*r0*theta;\n\
+   y3 = y0 + py0*r0*theta;\n\
    }\n\
 part = node.input['part0'];\n\
 if (part != undefined) {\n\
-   xin = node.input['xin'];\n\
-   yin = node.input['yin'];\n\
-   node.output['part#'] = part;\n\
+   part0 = 'max((X-'+number(x0)+')*'+number(-px0)+'+(Y-'+number(y0)+')*'+number(-py0)+','+part+')';\n\
+   part1 = 'max((X-'+number(x0)+')*'+number(px0)+'+(Y-'+number(y0)+')*'+number(py0)+','+part+')';\n\
+   part1 = 'max(-(X-'+number(x3)+')*'+number(px0)+'-(Y-'+number(y3)+')*'+number(py0)+','+part1+')';\n\
+   Xsub = '('+number(x1)+'+sqrt((X-'+number(x1)+')*(X-'+number(x1)+')+(ytemp-'+number(y1)+')*(ytemp-'+number(y1)+'))*'+number(nx0)+'+'+number(r0*px0)+'*acos(((X-'+number(x1)+')*'+number(nx0)+'+(ytemp-'+number(y1)+')*'+number(ny0)+')/sqrt((X-'+number(x1)+')*(X-'+number(x1)+')+(ytemp-'+number(y1)+')*(ytemp-'+number(y1)+')))*sgn(asin(((X-'+number(x1)+')*'+number(px0)+'+(ytemp-'+number(y1)+')*'+number(py0)+')/sqrt((X-'+number(x1)+')*(X-'+number(x1)+')+(ytemp-'+number(y1)+')*(ytemp-'+number(y1)+')))))';\n\
+   Ysub = '('+number(y1)+'+sqrt((X-'+number(x1)+')*(X-'+number(x1)+')+(ytemp-'+number(y1)+')*(ytemp-'+number(y1)+'))*'+number(ny0)+'+'+number(r0*py0)+'*acos(((X-'+number(x1)+')*'+number(nx0)+'+(ytemp-'+number(y1)+')*'+number(ny0)+')/sqrt((X-'+number(x1)+')*(X-'+number(x1)+')+(ytemp-'+number(y1)+')*(ytemp-'+number(y1)+')))*sgn(asin(((X-'+number(x1)+')*'+number(px0)+'+(ytemp-'+number(y1)+')*'+number(py0)+')/sqrt((X-'+number(x1)+')*(X-'+number(x1)+')+(ytemp-'+number(y1)+')*(ytemp-'+number(y1)+')))))';\n\
+   part1 = replace(part1,'X',Xsub);\n\
+   part1 = replace(part1,'Y',Ysub);\n\
+   part1 = replace(part1,'ytemp','Y');\n\
+   part2 = 'max((X-'+number(x3)+')*'+number(px0)+'+(Y-'+number(y3)+')*'+number(py0)+','+part+')';\n\
+   Xsub = '('+number(x3)+'+((X-'+number(x2)+')*'+number(px2)+'+(ytemp-'+number(y2)+')*'+number(py2)+')*'+number(px0)+'+((X-'+number(x2)+')*'+number(nx2)+'+(ytemp-'+number(y2)+')*'+number(ny2)+')*'+number(nx0)+')';\n\
+   Ysub = '('+number(y3)+'+((X-'+number(x2)+')*'+number(px2)+'+(Y-'+number(y2)+')*'+number(py2)+')*'+number(py0)+'+((X-'+number(x2)+')*'+number(nx2)+'+(Y-'+number(y2)+')*'+number(ny2)+')*'+number(ny0)+')';\n\
+   part2 = replace(part2,'X',Xsub);\n\
+   part2 = replace(part2,'Y',Ysub);\n\
+   part2 = replace(part2,'ytemp','Y');\n\
+   node.output['part#'] = 'min('+part2+',min('+part1+','+part0+'))';\n\
    }"
          warp_node = graph.add_node(name,x,y,z,-1,code)
-         graph.link(radius_node.index,warp_node.index,"","")
-         graph.link(start_node.index,radius_node.index,"","")
-         graph.update(start_node.index)
-         selected_node = start_node.index
+         graph.link(origin_node.index,warp_node.index,"","")
+         graph.link(radius_node.index,origin_node.index,"","")
+         graph.update(radius_node.index)
+         selected_node = radius_node.index
+         message = "node location?"
+         }
+      else if (label == 'menu_thicken') {
+         //
+         // origin
+         //
+         name = "origin"
+         x = 0
+         y = 0
+         z = 0
+         code = "\
+node.out(0).x = node.x + node.out(0).x - node.last.x;\n\
+node.out(0).y = node.y + node.out(0).y - node.last.y;\n\
+node.out(0).z = node.z + node.out(0).z - node.last.z;\n\
+part = node.input['part0'];\n\
+if (part != undefined) {\n\
+   dx = node.x - node.in(0).x;\n\
+   dy = node.y - node.in(0).y;\n\
+   dz = node.z - node.in(0).z;\n\
+   part = replace(part,'X','(X-'+number(dx)+')');\n\
+   part = replace(part,'Y','(Y-'+number(dy)+')');\n\
+   part = replace(part,'Z','(Z-'+number(dz)+')');\n\
+   node.output['part#'] = '('+part+')';\n\
+   }"
+         origin = graph.add_node(name,x,y,z,1,code)
+         //
+         // thicken
+         //
+         name = "thicken"
+         x = node_offset
+         y = node_offset
+         z = 0
+         code = "\
+part = node.input['part0'];\n\
+if (part != undefined) {\n\
+   dx = node.x - node.in(0).x;\n\
+   dy = node.y - node.in(0).y;\n\
+   dz = node.z - node.in(0).z;\n\
+   r = Math.sqrt(dx*dx+dy*dy+dz*dz);\n\
+   node.output['part#'] = '(('+part+')-'+number(r)+'/10.0)';\n\
+   }"
+         thicken = graph.add_node(name,x,y,z,-1,code)
+         graph.link(origin.index,thicken.index,"","")
+         graph.update(origin.index)
+         selected_node = origin.index
+         message = "node location?"
+         }
+      else if (label == 'menu_thin') {
+         //
+         // origin 
+         //
+         name = "origin"
+         x = 0
+         y = 0
+         z = 0
+         code = "\
+node.out(0).x = node.x + node.out(0).x - node.last.x;\n\
+node.out(0).y = node.y + node.out(0).y - node.last.y;\n\
+node.out(0).z = node.z + node.out(0).z - node.last.z;\n\
+part = node.input['part0'];\n\
+if (part != undefined) {\n\
+   dx = node.x - node.in(0).x;\n\
+   dy = node.y - node.in(0).y;\n\
+   dz = node.z - node.in(0).z;\n\
+   part = replace(part,'X','(X-'+number(dx)+')');\n\
+   part = replace(part,'Y','(Y-'+number(dy)+')');\n\
+   part = replace(part,'Z','(Z-'+number(dz)+')');\n\
+   node.output['part#'] = '('+part+')';\n\
+   }"
+         origin = graph.add_node(name,x,y,z,1,code)
+         //
+         // thin 
+         //
+         name = "thin"
+         x = node_offset
+         y = node_offset
+         z = 0
+         code = "\
+part = node.input['part0'];\n\
+if (part != undefined) {\n\
+   dx = node.x - node.in(0).x;\n\
+   dy = node.y - node.in(0).y;\n\
+   dz = node.z - node.in(0).z;\n\
+   r = Math.sqrt(dx*dx+dy*dy+dz*dz);\n\
+   node.output['part#'] = '(('+part+')+'+number(r)+'/10.0)';\n\
+   }"
+         thin = graph.add_node(name,x,y,z,-1,code)
+         graph.link(origin.index,thin.index,"","")
+         graph.update(origin.index)
+         selected_node = origin.index
+         message = "node location?"
+         }
+      else if (label == 'menu_amplitude') {
+         //
+         // amplitude
+         //
+         name = "amplitude"
+         x = 0
+         y = 0
+         z = 0
+         code = "\
+scale = 10; // set amplitude scale factor\n\
+//\n\
+part = node.input['part0'];\n\
+if (part != undefined) {\n\
+   node.output['part#'] = '('+scale+'*('+part+'))';\n\
+   }"
+         amplitude = graph.add_node(name,x,y,z,-1,code)
+         graph.update(amplitude.index)
+         selected_node = amplitude.index
+         message = "node location?"
+         }
+      else if (label == 'menu_shell') {
+         //
+         // origin 
+         //
+         name = "origin"
+         x = 0
+         y = 0
+         z = 0
+         code = "\
+node.out(0).x = node.x + node.out(0).x - node.last.x;\n\
+node.out(0).y = node.y + node.out(0).y - node.last.y;\n\
+node.out(0).z = node.z + node.out(0).z - node.last.z;\n\
+part = node.input['part0'];\n\
+if (part != undefined) {\n\
+   dx = node.x - node.in(0).x;\n\
+   dy = node.y - node.in(0).y;\n\
+   dz = node.z - node.in(0).z;\n\
+   part = replace(part,'X','(X-'+number(dx)+')');\n\
+   part = replace(part,'Y','(Y-'+number(dy)+')');\n\
+   part = replace(part,'Z','(Z-'+number(dz)+')');\n\
+   node.output['part#'] = '('+part+')';\n\
+   }"
+         origin = graph.add_node(name,x,y,z,1,code)
+         //
+         // shell 
+         //
+         name = "shell"
+         x = node_offset
+         y = node_offset
+         z = 0
+         code = "\
+part = node.input['part0'];\n\
+if (part != undefined) {\n\
+   dx = node.x - node.in(0).x;\n\
+   dy = node.y - node.in(0).y;\n\
+   dz = node.z - node.in(0).z;\n\
+   r = Math.sqrt(dx*dx+dy*dy+dz*dz);\n\
+   node.output['part#'] = 'max('+part+',-('+part+')-('+number(r)+'/10.0))';\n\
+   }"
+         shell = graph.add_node(name,x,y,z,-1,code)
+         graph.link(origin.index,shell.index,"","")
+         graph.update(origin.index)
+         selected_node = origin.index
          message = "node location?"
          }
       else if (label == 'menu_loft z') {
@@ -4936,7 +5170,7 @@ if (part != undefined) {\n\
       //
       else if (label == 'menu_(o)pen .fab') {
          xmlhttp=new XMLHttpRequest();
-         xmlhttp.onreadystatechange = function() {list_response(xmlhttp); };
+         xmlhttp.onreadystatechange = function() {fab_list_response(xmlhttp); };
          xmlhttp.open('POST','/list_files',true)
          xmlhttp.setRequestHeader("Content-type","application/x-www-form-urlencoded");
          xmlhttp.send("");
@@ -4945,15 +5179,27 @@ if (part != undefined) {\n\
          new_file_name = prompt(".fab file to save?",file_name)
          if ((new_file_name != "") && (new_file_name != null)) {
             file_name = new_file_name
-            if (file_name.indexOf(".fab") == -1)
-               file_name = file_name + ".fab"
+            if (file_name.indexOf(".fab") != -1)
+               file_name = file_name.slice(0,file_name.length-4)
             str = graph.to_string()
             xmlhttp=new XMLHttpRequest();
-            xmlhttp.onreadystatechange = function() {save_response(xmlhttp); };
-            xmlhttp.open('POST','/save/'+file_name+'/',true)
+            xmlhttp.onreadystatechange = function() {fab_save_response(xmlhttp); };
+            xmlhttp.open('POST','/save/'+file_name+'.fab/',true)
             xmlhttp.setRequestHeader("Content-type","application/x-www-form-urlencoded");
             xmlhttp.send(str);
             }
+         }
+      else if (label == 'menu_export .(m)ath') {
+         alert('export math')
+         }
+      else if (label == 'menu_export .s(v)g') {
+         alert('export svg')
+         }
+      else if (label == 'menu_export .s(t)l') {
+         alert('export stl')
+         }
+      else if (label == 'menu_export .(p)ng') {
+         alert('export png')
          }
       //
       // CAM
@@ -5551,6 +5797,10 @@ if (part != undefined) {\n\
             message = "(s)ubtract"
             action(0)
             }
+         else if (String.fromCharCode(event.keyCode) == "C") {
+            message = "(c)learance"
+            action(0)
+            }
          else {
             message =  ""
             operators_menu(0)
@@ -5711,8 +5961,20 @@ if (part != undefined) {\n\
             message = "(o)pen .fab"
             action(0)
             }
-         else if (String.fromCharCode(event.keyCode) == "S") {
-            message = "(s)ave .fab"
+         else if (String.fromCharCode(event.keyCode) == "M") {
+            message = "export .(m)ath"
+            action(0)
+            }
+         else if (String.fromCharCode(event.keyCode) == "V") {
+            message = "export .s(v)g"
+            action(0)
+            }
+         else if (String.fromCharCode(event.keyCode) == "T") {
+            message = "export .s(t)l"
+            action(0)
+            }
+         else if (String.fromCharCode(event.keyCode) == "P") {
+            message = "export .(p)ng"
             action(0)
             }
          else {

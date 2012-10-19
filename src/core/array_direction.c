@@ -21,7 +21,8 @@ int main(int argc, char **argv) {
    //
    // variables
    //
-   struct fab_vars v = init_vars(&v);
+   struct fab_vars v;
+   init_vars(&v);
    int threshold;
    //
    // command line args

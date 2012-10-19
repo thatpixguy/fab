@@ -1,7 +1,9 @@
 #include "edgesolver.hpp"
+#include "math_tree.hpp"
 #include "node.hpp"
+
 #include "switches.hpp"
-#include "geometry.hpp"
+
 
 #include <iostream>
 #include <cstdio>
@@ -33,82 +35,23 @@ const int EDGE_MAP[16][2][2] = {
     {{ 3, 0}, { 1, 0}}, // 321-
     {{-1,-1}, {-1,-1}} // 3210
 };
-///////////////////////////////////////////////////////////////////////////////
-
-void EdgeSolver::evaluate(MathTree* tree, FabVars& v)
-{
-#if MULTITHREADED
-    list<Region> regions = Region(v).split(thread::hardware_concurrency());
-    
-    // This thread needs something to do while waiting for the other threads
-    // to run - pick the first region as this thread's task.
-    Region mine = regions.front();
-    regions.pop_front();
-
-    // Create a thread for each region
-    ThreadList thread_list;
-    list<Region>::iterator it;
-    for (it = regions.begin(); it != regions.end(); ++it)
-        make_new_thread(tree, *it, v, thread_list);
-
-    // Evaluate this thread's region
-    EdgeSolver e(tree, v);
-    e.evaluate_region(mine);
-    e.save_edges();
-    
-    wait_for_threads(thread_list);
-#else
-    EdgeSolver e(tree, v);
-    e.evaluate_region(Region(v));
-    e.save_edges();
-#endif
-}
-
-///////////////////////////////////////////////////////////////////////////////
-
-void EdgeSolver::make_new_thread(MathTree* T, Region R, FabVars& v,
-                                ThreadList& thread_list)
-{
-    thread* newThread = new thread;
-    MathTree* newTree = T->clone();
-    EdgeSolver* e = new EdgeSolver(newTree, v);
-
-    *newThread = thread(&EdgeSolver::evaluate_region, e, R);
-    thread_list.push_back(make_pair(newThread, e));
-}
-
-///////////////////////////////////////////////////////////////////////////////
-
-void EdgeSolver::wait_for_threads(ThreadList& thread_list)
-{
-    while (!thread_list.empty())
-    {
-        ThreadList::iterator it = thread_list.begin();
-        while(it != thread_list.end())
-            if (it->first->timed_join(boost::system_time()))
-            {
-                delete it->first;
-                it->second->save_edges();
-                delete it->second->tree;
-                delete it->second;
-                it = thread_list.erase(it);
-            } else {
-                ++it;
-            }
-    }
-}
-
 
 
 ///////////////////////////////////////////////////////////////////////////////
 
-EdgeSolver::EdgeSolver(MathTree* tree, FabVars& v)
-    : tree(tree), v(v), paths(v.decimation_error)
+EdgeSolver::EdgeSolver(FabVars& v)
+    : Solver(v), paths(v.decimation_error)
 {
     // Nothing to do here.
 }
 
-void EdgeSolver::save_edges()
+EdgeSolver::EdgeSolver(MathTree* tree, FabVars& v)
+    : Solver(tree, v), paths(v.decimation_error)
+{
+    // Nothing to do here.
+}
+
+void EdgeSolver::save()
 {
     v.add_paths(paths);
 }
@@ -122,6 +65,7 @@ void EdgeSolver::evaluate_region(Region r)
     // point-by-point evaluation rather than recursing.
     if (r.volume == 1) {
         evaluate_voxel(r);
+        v.pb.update(r.volume);
         return;
     }
     
@@ -132,12 +76,12 @@ void EdgeSolver::evaluate_region(Region r)
 
     tree->eval(X, Y, Z);
     
-    // If the result was unambiguous, then fill in that part
-    // of the image, then return.
-    tribool result = tree->root->result_bool;
-    
-    if (!indeterminate(result))
+    // If the result was unambiguous, then we don't care since it
+    // is either entirely inside or outside the image. 
+    if (!indeterminate(tree->root->result_bool)) {
+        v.pb.update(r.volume);
         return;
+    }
 
     // Split the region and recurse
     list<Region> subregions = r.split();
@@ -157,6 +101,7 @@ void EdgeSolver::evaluate_region(Region r)
 
 ///////////////////////////////////////////////////////////////////////////////
 
+// Evaluate a single rectangle, using interpolation to smooth the edges.
 void EdgeSolver::evaluate_voxel(Region r)
 {
     Vec3f corner(r.imin, r.jmin, r.kmin);
@@ -193,6 +138,8 @@ void EdgeSolver::evaluate_voxel(Region r)
            
 }
 
+// Interpolates between a full and empty point, using caching to
+// reduce the number of lookups required.
 Vec3f EdgeSolver::interpolate(Vec3f filled, Vec3f empty)
 {
     std::map<Edge, Vec3f>::iterator it;

@@ -4,36 +4,72 @@
 #include <boost/thread.hpp>
 
 #include "fabvars.hpp"
-#include "math_tree.hpp"
 #include "region.hpp"
+#include "math_tree.hpp"
 
+// Forward declaration
+class TaskBuffer;
+
+// Generic solver class.
 class Solver
 {
-public:
-    Solver(FabVars& v);
-    void evaluate(MathTree* tree);
-    void evaluate_regions(MathTree* tree, std::list<Region> regions);
-    void evaluate_region(MathTree* tree, Region R);
-    void evaluate_points(MathTree* tree, Region R);
-    void evaluate_array(MathTree* tree, Region R);
+public: 
 
-private:
-    typedef std::list<std::pair<boost::thread*, MathTree*> > ThreadList;
+    /*  Solver(MathTree* tree, FabVars& v)
+     *  Solver(FabVars& v)
+     
+     *  Constructs a solver with a given tree (or NULL) and reference to the
+     *  global FabVars instance.
+     */
+    Solver(MathTree* tree, FabVars& v)
+        : tree(tree), task_buffer(NULL), v(v) {}
+    Solver(FabVars& v)
+        : tree(NULL), task_buffer(NULL), v(v) {}
     
-    void make_new_thread(MathTree* T, Region R,
-                         ThreadList& thread_list);
-    void wait_for_threads(ThreadList& thread_list);
-    void cull_regions(std::list<Region>& subregions);
     
+    virtual ~Solver() { /* Nothing to do here */ }
+    
+
+    /* virtual void evaluate_region(Region R) = 0
+     *  
+     *  Evaluate a given region recursively, saving results wherever is
+     *  appropriate.
+     */
+    virtual void evaluate_region(Region R) = 0;
+
+
+    /* virtual void save()
+     *  
+     *  Saves the results of a solver instance's calculation.
+     *  Typically, this will involve copying locally saved results into
+     *  the solver's FabVars variable.
+     */
+    virtual void save() = 0;
+    
+    
+    /* void run()
+     *  
+     *  Runs an instance of the solver from the task buffer.
+     */
+    void run();
+    
+    
+    /* void set_buffer(TaskBuffer* b)
+     *
+     *  Sets the queue from which the solver will operate.
+     */
+    void set_buffer(TaskBuffer* b);
+    
+protected:
+    // The instance of the MathTree associated with this solver.
+    MathTree* tree;
+    
+    // For a thread-pool style solver, this object gives us tasks.
+    TaskBuffer* task_buffer;
+    
+    // A reference to the system's FabVars, where results are stored.
     FabVars& v;
-    const int MAX_THREADS;
-    
-    // Variables related to the output progress bar
-    unsigned long full_volume;
-    unsigned long solved_volume;
-    int next_tick;
-    int bar_length;
-    boost::mutex solved_volume_lock;
-    void update_progress(long dVol);
 };
+
 #endif
+    

@@ -564,7 +564,8 @@ main(int argc, char **argv) {
    //
    // local vars
    //
-   struct fab_vars v = init_vars(&v);
+   struct fab_vars v;
+   init_vars(&v);
    char cmd[100];
    int points, resolution;
    float z;
@@ -603,6 +604,7 @@ main(int argc, char **argv) {
    //
    //  read SVG
    //
+
    fab_read_svg(&v,argv[1],points,resolution,z);
    //
    // write path

@@ -145,7 +145,8 @@ main(int argc, char **argv) {
    //
    // local vars
    //
-   struct fab_vars v = init_vars(&v);
+   struct fab_vars v;
+   init_vars(&v);
    float xy_speed, z_speed, xy_jog_speed, z_jog_speed, z_jog;
    int direction,spindle_speed;
    //

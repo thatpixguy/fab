@@ -15,6 +15,7 @@ commands:
    bin/path_join
    bin/path_array
    bin/path_ps
+   bin/path_dxf
    bin/path_png
    bin/path_rml
    bin/path_sbp
@@ -33,6 +34,7 @@ commands:
    bin/path_view
    bin/rml_move
    bin/fab_send
+   bin/fab_update
    bin/cad_math
    bin/math_png_py
    bin/math_stl_py
@@ -56,6 +58,7 @@ commands:
    bin/make_math_g
    bin/make_math_ord
    bin/make_math_ps
+   bin/make_math_uni
    bin/make_math_rml
    bin/make_math_sbp
    bin/make_png_png
@@ -68,6 +71,7 @@ commands:
    bin/make_png_sbp
    bin/make_png_ord
    bin/make_png_camm
+   bin/make_png_plt
    bin/make_png_g
    bin/make_stl_png
    bin/make_stl_rml
@@ -85,7 +89,11 @@ commands:
    bin/make_stl_snap
    bin/make_svg_snap
    bin/make_png_ps_halftone
+   bin/make_cad_dxf
+   bin/make_math_dxf
+   bin/make_png_dxf
    bin/cad_ui
+   bin/kokopelli
 
 command line: stl_info in.stl
    in.stl = input binary STL file
@@ -186,6 +194,10 @@ command line: path_ps in.path out.ps [view]
    in.path = input path file
    out.ps= output PostScript file
    view = view projection(s) (optional, z|3, default z)
+
+command line: path_dxf in.path out.dxf
+   in.path = input path file
+   out.dxf = output DXF file
 
 command line: path_png in.path out.png
    in.path = input path file
@@ -310,11 +322,17 @@ command line: rml_move x y
 command line: fab_send [file]
    file = file to send
    file type commands:
-       {'.camm': 'printer=vinyl; lpr -P$printer "$file"', '.ord': 'gedit "$file"', '.uni': 'port=/dev/lp0; cat "$file" > $port', '.rml': 'port=/dev/ttyUSB0; stty -F $port 9600 raw -echo crtscts; cat "$file" > $port', '.epi': 'printer=laser; lpr -P$printer "$file"', '.sbp': 'gedit "$file"', '.ps': 'okular "$file"', '.g': 'gedit "$file"'}
+       {'.camm': 'printer=vinyl; lpr -P$printer "$file"', '.uni': 'port=/dev/lp0; cat "$file" > $port', '.epi': 'printer=laser; lpr -P$printer "$file"', '.g': 'gedit "$file"', '.ps': 'okular "$file"', '.rml': 'port=/dev/ttyUSB0; stty -F $port 9600 raw -echo crtscts; cat "$file" > $port', '.sbp': 'gedit "$file"', '.dxf': 'qcad "$file"', '.stl': 'meshlab "$file"', '.plt': 'cp "$file" "/cygdrive/c/Vision Machine Tools/Outbox/$file"', '.ord': 'gedit "$file"'}
 
-command line: cad_math in.cad out.math
+command line: fab_update [check|install]
+   check will inform you if a newer version of the fab modules is available.
+   install will install a newer version of the fab modules, if applicable.
+
+command line: cad_math in.cad out.math [args]
    in.cad = input design file
    out.math = output math string file
+   args = arguments to cad script
+          (delivered in sys.argv)
 
 command line: math_png_py in.math out.png [resolution [number [view [rx ry rx]]]]
    in.math = input math string file

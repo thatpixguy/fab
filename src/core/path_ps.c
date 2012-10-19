@@ -12,12 +12,88 @@
 
 #include "fab.h"
 
+void fab_write_ps(struct fab_vars *v, char *output_file_name) {
+   //
+   // write path to PostScript file
+   //
+   int x,y,z,current_z;
+   float margin = 0.5; // lower left margin, in inches
+   float gray;
+	FILE *output_file;
+   int nsegs=0, npts=0;
+   float scale;
+   output_file = fopen(output_file_name,"w");
+   fprintf(output_file,"%%! path_ps output\n");
+   fprintf(output_file,"%%%%BoundingBox: %f %f %f %f\n",72.0*margin,72.0*margin,
+      72.0*(margin+v->dx/25.4),72.0*(margin+v->dy/25.4));
+   fprintf(output_file,"/m {moveto} def\n");
+   fprintf(output_file,"/l {lineto} def\n");
+   fprintf(output_file,"/g {setgray} def\n");
+   fprintf(output_file,"/s {stroke} def\n");
+   fprintf(output_file,"72 72 scale\n");
+   fprintf(output_file,"%f %f translate\n",margin,margin);
+   fprintf(output_file,"1 setlinewidth\n");
+   scale = v->dx/(25.4*(v->nx-1.0));
+   fprintf(output_file,"%f %f scale\n",scale,scale);
+   current_z = 0;
+   fprintf(output_file,"0 g\n");
+   v->path->segment = v->path->first;
+   while (1) {
+      //
+      // follow segments
+      //
+      v->path->segment->point = v->path->segment->first;
+      x = v->path->segment->point->first->value;
+      y = v->ny - v->path->segment->point->first->next->value;
+      if (v->path->dof == 3) {
+         z = v->path->segment->point->first->next->next->value;
+         if (z != current_z) {
+            gray = 0.9 * z / (v->nz - 1.0);
+            fprintf(output_file,"%.3f g\n",gray);
+            current_z = z;
+            }
+         }
+      fprintf(output_file,"%d %d m\n",x,y);
+      nsegs += 1;
+      while (1) {
+         //
+         // follow points
+         //
+         if (v->path->segment->point->next == 0)
+            break;
+         v->path->segment->point = v->path->segment->point->next;
+         x = v->path->segment->point->first->value;
+         y = v->ny - v->path->segment->point->first->next->value;
+         fprintf(output_file,"%d %d l\n",x,y);
+         if (v->path->dof == 3) {
+            z = v->path->segment->point->first->next->next->value;
+            if (z != current_z) {
+               gray = 0.9 * 0.5 * (z + current_z) / (v->nz - 1.0);
+               fprintf(output_file,"s %.3f g %d %d m\n",gray,x,y);
+               current_z = z;
+               }
+            }
+         npts += 1;
+         }
+      fprintf(output_file,"s\n");
+      if (v->path->segment->next == 0)
+         break;
+      v->path->segment = v->path->segment->next;
+      }
+   fprintf(output_file,"showpage\n");
+   fclose(output_file);
+   printf("write %s\n",output_file_name);
+   printf("   segments: %d, points: %d\n",nsegs,npts);
+   }
+
 main(int argc, char **argv) {
    //
    // local vars
    //
-   struct fab_vars v = init_vars(&v);
-   struct fab_vars vnew = init_vars(&vnew);
+   struct fab_vars v;
+   init_vars(&v);
+   struct fab_vars vnew;
+   init_vars(&vnew);
    char view;
    int x,y,z,nz,dz;
    float scale;

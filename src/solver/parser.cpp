@@ -78,12 +78,27 @@ ostream& operator<<(ostream& o, const Parser::io_type& t)
     }
 }
 
+
+Parser::Parser()
+    : math_string(NULL), start(NULL), unary_subtraction(true), map_state(0),
+      newX(NULL), newY(NULL), newZ(NULL)
+{
+    // Stores plain old X, Y, and Z as the current
+    // X, Y, and Z coordinates.
+    currentX.push_front(new VarX());
+    cache_node(currentX.front());
+    
+    currentY.push_front(new VarY());
+    cache_node(currentY.front());
+        
+    currentZ.push_front(new VarZ());
+    cache_node(currentZ.front());
+}
+
 void Parser::wrap_argument(parse_token& arg, io_type desired)
 {
     if (!arg.n || arg.output == desired)
         return;
-
-//    cout << "Transforming " << *arg.n << " into ";
         
     // Transform numerical nodes into logical nodes.
     if (desired == IO_BOOL && arg.output == IO_NUM) {
@@ -116,6 +131,7 @@ void Parser::wrap_argument(parse_token& arg, io_type desired)
     cache_node(arg.n);
 }
 
+
 // Wraps a real-valued node f(x, y, z) into the boolean f(x, y, z) < 0
 void Parser::wrap_real(parse_token& arg)
 {
@@ -132,11 +148,6 @@ void Parser::wrap_real(parse_token& arg)
     arg.output = IO_BOOL;
 }
 
-Parser::Parser()
-    : math_string(NULL), start(NULL), end(NULL), unary_subtraction(true)
-{
-    // Nothing to do here.
-}
 
 void print_list(list<Parser::parse_token> L, ostream& o)
 {
@@ -177,6 +188,7 @@ void print_parse(list<Parser::parse_token> output,
     print_parse(output, operators, cout);
 }
 
+
 // Stores a node in the cache, uniquifying if COMBINE_NODES is enabled.
 void Parser::cache_node(Node*& node)
 {
@@ -186,14 +198,20 @@ void Parser::cache_node(Node*& node)
         return;
         
     opcode op = node->op();
+    unsigned weight = node->get_weight();
+    
+    // If we don't have a cache line for this weight, then expand the cache,
+    // filling new lines with a vector of node lists.
+    if (weight+1 > node_cache.size())
+        node_cache.resize(weight+1, vector<list<Node*> >(LAST_OP));
     
 #if COMBINE_NODES
     list<Node*>::iterator it;
     Node* match = NULL;
 
     // Look for matches
-    for (it = node_cache[op].begin();
-         it != node_cache[op].end();
+    for (it = node_cache[weight][op].begin();
+         it != node_cache[weight][op].end();
          ++it) {
         if (**it == *(node)) {
             match = *it;
@@ -204,15 +222,18 @@ void Parser::cache_node(Node*& node)
     // If we found a match, delete the old node and replace it with
     // the matching node.
     if (match) {
-        delete node;
-        node = match;
+        if (node != match) {
+            delete node;
+            node = match;
+        }
     } else {
-        node_cache[op].push_front(node);
+        node_cache[weight][op].push_front(node);
     }
 #else
-    node_cache[op].push_front(node);
+    node_cache[weight][op].push_front(node);
 #endif
 }
+
 
 // Go through the node cache and delete nodes with no references
 void Parser::remove_ignored()
@@ -222,31 +243,49 @@ void Parser::remove_ignored()
     
     do {
         keep_going = false;
-        
-        for (int op = 0; op < LAST_OP; ++op) {
-            it = node_cache[op].begin();
-            while (it != node_cache[op].end()) {
-                if ((**it).is_ignored()) {
-                    delete *it;
-                    it = node_cache[op].erase(it);
-                    keep_going = true;
-                } else {
-                    ++it;
+
+        // Iterate through each list in the node cache
+        for (unsigned weight = 0; weight < node_cache.size(); ++weight) {
+            for (int op = 0; op < LAST_OP; ++op) {
+                it = node_cache[weight][op].begin();
+                
+                // Iterate through each node in this cache
+                while (it != node_cache[weight][op].end()) {
+                
+                    // If the node has no one watching it, then
+                    // deactivate and delete it
+                    if ((**it).ignored()) {
+                        (**it).deactivate();
+                        delete *it;
+                        it = node_cache[weight][op].erase(it);
+                        keep_going = true;
+                    } else {
+                        ++it;
+                    }
                 }
-            }
-        }
+            } // end of loop through operators
+        } // end of loop through weights
 
     } while (keep_going);
 }
     
 
-void Parser::cache_to_tree()
+// Copies the entire cache to a MathTree
+MathTree* Parser::cache_to_tree(Node* root)
 {
+    MathTree* tree = new MathTree();
     list<Node*>::iterator it;
-    for (int op = 0; op < LAST_OP; ++op)
-        for (it = node_cache[op].begin(); it != node_cache[op].end(); ++it)
-            tree->add(*it);
+    for (unsigned weight = 0; weight < node_cache.size(); ++weight)
+        for (int op = 0; op < LAST_OP; ++op)
+            for (it = node_cache[weight][op].begin();
+                 it != node_cache[weight][op].end(); ++it)
+                tree->add(*it);
+    tree->pack();
+    tree->set_root(root);
+    cout << "Done." << endl;
+    return tree;
 }
+
 
 void Parser::convert_colors(parse_token& oper,
                             parse_token& lh_arg,
@@ -290,6 +329,7 @@ void Parser::convert_colors(parse_token& oper,
         oper.output = IO_COLOR;
     }
 }
+
 
 bool Parser::simplify(parse_token& oper,
                       parse_token& lh_arg,
@@ -351,6 +391,7 @@ bool Parser::simplify(parse_token& oper,
     return false;
 }
 
+
 // operator_to_output
 //
 //      Find out how many arguments the operation wants to take from
@@ -359,12 +400,18 @@ bool Parser::simplify(parse_token& oper,
 //      Put the new operation on the output stack.
 void Parser::operator_to_output(parse_token& oper)
 {
-    if (oper.ttype == TOKEN_LPARENS)
+    if (oper.ttype == TOKEN_LPARENS || oper.ttype == TOKEN_MAP_START)
         return;
     
-//    cout << *(oper.n) << " wants to pull " << oper.num_args << " off the stack." << endl;
-//    cout << "The stack has " << output.size() << endl;
-
+    // If this node's children have already been populated, then
+    // we can skip the song and dance about pulling them from the
+    // stack.
+    if (oper.n && oper.n->null_children() == false) {
+        cache_node(oper.n);
+        output.push_front(oper);
+        return;
+    }
+    
     parse_token rh_arg;
     parse_token lh_arg;
     
@@ -377,7 +424,6 @@ void Parser::operator_to_output(parse_token& oper)
         }
         rh_arg = output.front();
         output.pop_front();
-//        cout << "Acquired " << *rh_arg.n << endl;
     }
     
     // Handle the second argument
@@ -389,7 +435,6 @@ void Parser::operator_to_output(parse_token& oper)
         }
         lh_arg = output.front();
         output.pop_front();
-//        cout << "Acquired " << *lh_arg.n << endl;
     }   
     
     // Set of special cases to handle colors correctly.
@@ -407,23 +452,21 @@ void Parser::operator_to_output(parse_token& oper)
     simplified = simplify(oper, lh_arg, rh_arg);
 #endif
 
-    if (!simplified && oper.num_args == 1) {
-        static_cast<UnaryNode*>(oper.n)->set_child(rh_arg.n);
-    }
-    else if (!simplified && oper.num_args == 2) {
-        static_cast<BinaryNode*>(oper.n)->set_children(lh_arg.n,
-                                                       rh_arg.n);
-    }
-
-    // If the node has been simplified, then don't cache it - it is already
-    // cached by definition (since simplification replaces the node with one
-    // of its arguments).
-    if (!simplified)
+    // If this node has been simplified, then we don't need to worry
+    // about assigning children or caching (since the node is already
+    // cached).
+    if (!simplified) {
+        if (oper.num_args == 1)
+            static_cast<UnaryNode*>(oper.n)->set_child(rh_arg.n);
+        else if (oper.num_args == 2)
+            static_cast<BinaryNode*>(oper.n)->set_children(lh_arg.n,
+                                                           rh_arg.n);
         cache_node(oper.n);
-
+    }
+    
     output.push_front(oper);
-//    cout << "Produced node " << *oper.n << endl;
 }
+
 
 // operator_to_stack
 //
@@ -445,6 +488,7 @@ void Parser::operator_to_stack(parse_token& o1)
     operators.push_front(o1);
 }
 
+
 bool str_match(const char* s1, const char* s2)
 {
     do
@@ -463,24 +507,54 @@ Parser::parse_token Parser::next_token()
     
     if (*start == '(') {
         start += 1;
-        result = parse_token(TOKEN_LPARENS);
+        result = TOKEN_LPARENS;
+    }
+    else if (str_match(start, "{")) {
+        start += 1;
+        result = TOKEN_MAP_START;
+    }
+    else if (str_match(start, "X:")) {
+        start +=2;
+        result = TOKEN_MAP_DEF;
+        result.n = currentX.front();
+    }
+    else if (str_match(start, "Y:")) {
+        start +=2;
+        result = TOKEN_MAP_DEF;
+        result.n = currentY.front();
+    }
+    else if (str_match(start, "Z:")) {
+        start +=2;
+        result = TOKEN_MAP_DEF;
+        result.n = currentZ.front();
+    }
+    else if (str_match(start, ";")) {
+        start += 1;
+        result = TOKEN_MAP_SEPARATOR;
+    }
+    else if (str_match(start, "}")) {
+        start += 1;
+        result = TOKEN_MAP_END;
     }
     else if (*start == ')') {
         start += 1;
         next_unary_subtraction = false;
-        result = parse_token(TOKEN_RPARENS);
+        result = TOKEN_RPARENS;
     } else if (*start == 'X' || *start == 'x') {
         start += 1;
         next_unary_subtraction = false;
-        result = new VarX();
+        result = currentX.front();
+        result.ttype = TOKEN_NUM;
     } else if (*start == 'Y' || *start == 'y') {
         start += 1;
         next_unary_subtraction = false;
-        result = new VarY();
+        result = currentY.front();
+        result.ttype = TOKEN_NUM;
     } else if (*start == 'Z' || *start == 'z') {
         start += 1;
         next_unary_subtraction = false;
-        result = new VarZ();
+        result = currentZ.front();
+        result.ttype = TOKEN_NUM;
     }
     else if (*start == '-') {
         start += 1;
@@ -492,7 +566,7 @@ Parser::parse_token Parser::next_token()
     }
     else if (*start == ',') {
         start += 1;
-        result = parse_token(TOKEN_ARGSEP);
+        result = TOKEN_ARGSEP;
     }
     else if (*start == '*') {
         start += 1;
@@ -651,61 +725,29 @@ Parser::parse_token Parser::next_token()
         next_unary_subtraction = false;
         result = new NumericConst(v);
     }
-    /*
-    else if (str_match(start, "true") || str_match(start, "True"))
+    else if (*start != ' ')
     {
-        start += 4;
-        result = new logic_bool(true);
-    }
-    else if (str_match(start, "false") || str_match(start, "False"))
-    {
-        start += 4;
-        result = new logic_bool(false);
-    }
-    */
-    else
-    {
-        if (*start != ' ') {
-            cerr << "Warning:  Unknown token at '";
-            if (string(start).size() > 10)
-                cerr << string(start, start + 10) << "...'" << endl;
-            else
-                cerr << string(start) << "'" << endl;
-        }
+        cerr << "Warning:  Unknown token at '";
+        if (string(start).size() > 10)
+            cerr << string(start, start + 10) << "...'" << endl;
+        else
+            cerr << string(start) << "'" << endl;
         start++;
         return parse_token();
     }
     
+    // Zoom along until we're staring at something useful.
+    while (*start == ' ')
+        start++;
+    
     unary_subtraction = next_unary_subtraction;
+
     return result;
 }
 
-list<Parser::parse_token> Parser::tokenize(const char* input)
-{
-    start = input;
-    end = input;
-
-    list<parse_token> token_list;
-
-    if (*end != 0)
-        while(*(++end)); // Find the end of the string
-    
-    while (start != end)
-    {
-        parse_token p = next_token();
-        if (p.ttype == TOKEN_ERROR)
-            return list<parse_token>();
-        if (p.ttype != TOKEN_EMPTY)
-            token_list.push_back(p);
-    }
-    
-    return token_list;
-}
 
 MathTree* Parser::parse(string input, solver_mode& mode)
 {
-    tree = new MathTree();
-
     parse_token current;
 
     cout << "Parsing... ";
@@ -720,7 +762,7 @@ MathTree* Parser::parse(string input, solver_mode& mode)
     while (*start)
     {     
         current = next_token();
-        
+            
         // If there was a parse failure, then return.
         if (current.ttype == TOKEN_ERROR)
             return NULL;
@@ -735,6 +777,53 @@ MathTree* Parser::parse(string input, solver_mode& mode)
         else if (current.ttype == TOKEN_FUNC)
             operators.push_front(current);
             
+        else if (current.ttype == TOKEN_MAP_START) {
+        
+            if (map_state) {
+                cerr << "Parse error: badly nested map statement."
+                     << endl;
+                exit(1);
+            }
+            
+            // If they are using curly braces without any map commands, then
+            // push trivial maps to the stacks.
+            if (*start && *(start+1) == ':') {
+                map_state = '?';
+            } else {
+                currentX.push_front(currentX.front());
+                currentY.push_front(currentY.front());
+                currentZ.push_front(currentZ.front());
+            }
+            
+            operators.push_front(current);
+        }
+        
+        else if (current.ttype == TOKEN_MAP_DEF) {
+            // When we get a colon, it better be within in the context of
+            // a map operation (and it should follow X,Y, or Z)
+            
+            if (current.n == currentX.front()) {
+                if (newX || map_state != '?') {
+                    cerr << "Parse error: Repeated X mapping." << endl;
+                    exit(1);
+                }
+                map_state = 'X';
+            } else if (current.n == currentY.front()) {
+                if (newY || map_state != '?') {
+                    cerr << "Parse error: Repeated Y mapping." << endl;
+                    exit(1);
+                }
+                map_state = 'Y';
+            } else if (current.n == currentZ.front()) {
+                if (newZ || map_state != '?') {
+                    cerr << "Parse error: Repeated Z mapping." << endl;
+                    exit(1);
+                }
+                map_state = 'Z';
+            }
+        }
+
+        
         else if (current.ttype == TOKEN_ARGSEP)
         {   
             if (operators.empty()) {
@@ -753,6 +842,76 @@ MathTree* Parser::parse(string input, solver_mode& mode)
                 }
             }
         }
+        
+        
+        else if (current.ttype == TOKEN_MAP_SEPARATOR) {
+        
+            if (!map_state) {
+                cerr << "Parse error: Misplaced map argument separator."
+                     << endl;
+                exit(1);
+            }
+        
+            if (operators.empty()) {
+                cerr << "Parse error: Misplaced map argument separator."
+                     << endl;
+                exit(1);
+            }
+            while (operators.front().ttype != TOKEN_MAP_START)
+            {
+                operator_to_output(operators.front());
+                operators.pop_front();
+                if (operators.empty()) {
+                    cerr << "Parse error: Misplaced map argument separator."
+                         << endl;
+                    exit(1);
+                }
+            }
+        
+            // If we're in the middle of a map operation, save the
+            // new mapped value for X, Y, or Z.
+            if (map_state == 'X') {
+                newX = output.front().n;
+                output.pop_front();
+            } else if (map_state == 'Y') {
+                newY = output.front().n;
+                output.pop_front();
+            } else if (map_state == 'Z') {
+                newZ = output.front().n;
+                output.pop_front();
+            }
+            
+            // Check to see if another map operation is coming down the line.
+            if (*start && *(start+1) == ':') {
+                map_state = '?';
+            } 
+            
+            // If not, then apply the saved maps for X, Y, and Z.
+            else {
+                if (newX)
+                    currentX.push_front(newX);
+                else
+                    currentX.push_front(currentX.front());
+                    
+                if (newY)
+                    currentY.push_front(newY);
+                else
+                    currentY.push_front(currentY.front());
+                
+                if (newZ)
+                    currentZ.push_front(newZ);
+                else
+                    currentZ.push_front(currentZ.front());
+                
+                newX = NULL;
+                newY = NULL;
+                newZ = NULL;
+                
+                map_state = 0;
+            }
+        }
+        
+        
         
         else if (current.ttype == TOKEN_OP)
             operator_to_stack(current);
@@ -779,11 +938,32 @@ MathTree* Parser::parse(string input, solver_mode& mode)
             
             // If there's a function on top of the stack, then it belongs
             // with the set of parentheses.
-            if (!operators.empty() && operators.front().ttype == TOKEN_FUNC)
-            {
+            if (!operators.empty() && operators.front().ttype == TOKEN_FUNC) {
                 operator_to_output(operators.front());
                 operators.pop_front();
             }
+        }
+        
+        else if (current.ttype == TOKEN_MAP_END)
+        {
+            if (operators.empty()) {
+                cerr << "Parse error: mismatched curly braces." << endl;
+                exit(1);
+            }        
+            while (operators.front().ttype != TOKEN_MAP_START)
+            {
+                operator_to_output(operators.front());
+                operators.pop_front();
+                if (operators.empty()) {
+                    cerr << "Parse error: mismatched curly braces." << endl;
+                    exit(1);
+                }
+            }
+            operators.pop_front();
+            
+            currentX.pop_front();
+            currentY.pop_front();
+            currentZ.pop_front();
         }
     }
     
@@ -823,13 +1003,264 @@ MathTree* Parser::parse(string input, solver_mode& mode)
     remove_ignored();
     
     // Convert the cache into the tree.
-    cache_to_tree();
+    return cache_to_tree(root);
+}
 
-    cout << "Done." << endl;
+////////////////////////////////////////////////////////////////////////////////
+// Functions below this point are used to extract parsing information from node
+// opcodes.
+////////////////////////////////////////////////////////////////////////////////
+
+int get_precedence(opcode op)
+{
+    switch (op)
+    {
+        case OP_NOT:
+        case OP_NEGATIVE:
+        case COLOR_NOT:
+            return 1;
+        case OP_MULT:
+        case OP_DIV:
+            return 2;
+        case OP_PLUS:
+        case OP_MINUS:
+            return 3;
+        case OP_LT:
+        case OP_GT:
+        case OP_LEQ:
+        case OP_GEQ:
+        case OP_NEQ:
+            return 4;
+        case OP_AND:
+        case COLOR_AND:
+            return 5;
+        case OP_OR:
+        case COLOR_OR:
+            return 6;
+        default:
+            return 100;
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+// get_node_type
+//
+//      From an opcode, infer the type of the node.
+//      (e.g. cosine implies a numerical node)
+node_type get_node_type(opcode op)
+{
+    switch (op)
+    {
+        case OP_ABS:
+        case OP_COS:
+        case OP_SIN:
+        case OP_ACOS:
+        case OP_ASIN:
+        case OP_ATAN:
+        case OP_SQRT:
+        case OP_NEGATIVE:
+        case OP_EXP:
+        case OP_SGN:
+        case OP_PLUS:
+        case OP_MINUS:
+        case OP_MULT:
+        case OP_DIV:
+        case OP_ATAN2:
+        case OP_POW:
+        case OP_MIN:
+        case OP_MAX:
+        case VAR_X:
+        case VAR_Y:
+        case VAR_Z:
+        case NUM_CONST:
+            return NODE_NUM;
+        case OP_AND:
+        case OP_OR:
+        case OP_NOT:
+        case OP_NEQ:
+            return NODE_LOGIC;
+        case OP_LT:
+        case OP_LEQ:
+        case OP_GT:
+        case OP_GEQ:
+            return NODE_TRANS;
+        case COLOR_AND:
+        case COLOR_OR:
+        case COLOR_NOT:
+            return NODE_COLOR;
+        default:
+            cerr << "Error: unknown operator " << op << " in get_node_type." << endl;
+            exit(1);
+        }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+// get_token_type
+//
+//      From an opcode, infer the type of the token.
+//      (e.g. cosine implies a function node)
+Parser::token_type get_token_type(opcode op)
+{
+    switch (op)
+    {
+        case OP_ABS:
+        case OP_COS:
+        case OP_SIN:
+        case OP_ACOS:
+        case OP_ASIN:
+        case OP_ATAN:
+        case OP_SQRT:
+        case OP_ATAN2:
+        case OP_POW:
+        case OP_MIN:
+        case OP_MAX:
+        case OP_EXP:
+        case OP_SGN:
+        case NUM2BOOL:
+        case BOOL2NUM:
+        case NUM2COLOR:
+        case BOOL2COLOR:
+            return Parser::TOKEN_FUNC;
+        case OP_NEGATIVE:
+        case OP_PLUS:
+        case OP_MINUS:
+        case OP_MULT:
+        case OP_DIV:
+        case OP_AND:
+        case OP_OR:
+        case OP_NOT:
+        case OP_LT:
+        case OP_LEQ:
+        case OP_GT:
+        case OP_GEQ:
+        case OP_NEQ:
+        case COLOR_OR:
+        case COLOR_AND:
+        case COLOR_NOT:
+            return Parser::TOKEN_OP;
+        case VAR_X:
+        case VAR_Y:
+        case VAR_Z:
+        case NUM_CONST:
+            return Parser::TOKEN_NUM;
+        default:
+            cerr << "Error: unknown operator " << op << " in get_token_type." << endl;
+            exit(1);
+        }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+Parser::io_type get_output(opcode op)
+{
+    // Special case for translator nodes
+    switch (op) {
+        case BOOL2NUM:
+            return Parser::IO_NUM;
+        case NUM2BOOL:
+            return Parser::IO_BOOL;
+        case BOOL2COLOR:
+        case NUM2COLOR:
+            return Parser::IO_COLOR;
+        default:
+            ; // Continue to the rest of the function
+    }
+
+    node_type ntype = get_node_type(op);
+    switch (ntype)
+    {
+        case NODE_NUM:
+            return Parser::IO_NUM;
+        case NODE_TRANS:
+        case NODE_LOGIC:
+            return Parser::IO_BOOL;
+        case NODE_COLOR:
+            return Parser::IO_COLOR;
+        default:
+            return Parser::IO_NONE;
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+Parser::io_type get_input(opcode op)
+{
+    // Special case for translator nodes
+    switch (op) {
+        case BOOL2NUM:
+        case BOOL2COLOR:
+            return Parser::IO_BOOL;
+        case NUM2BOOL:
+        case NUM2COLOR:
+            return Parser::IO_NUM;
+        default:
+            ; // Continue to the rest of the function
+    }
     
-    // Convert from C++ structures to C-style arrays.
-    tree->pack();
-    tree->set_root(root);
-    
-    return tree;
+    node_type ntype = get_node_type(op);
+    switch (ntype)
+    {
+        case NODE_NUM:
+        case NODE_TRANS:
+            return Parser::IO_NUM;
+        case NODE_LOGIC:
+            return Parser::IO_BOOL;
+        case NODE_COLOR:
+            return Parser::IO_COLOR;
+        default:
+            return Parser::IO_NONE;
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+// get_argcount
+//
+//      From an opcode, infer the number of arguments that a node will want
+//      to take (e.g. cosine wants one, atan2 wants 2)
+int get_argcount(opcode op)
+{
+    switch (op)
+    {
+        case NUM_CONST:
+        case VAR_X:
+        case VAR_Y:
+        case VAR_Z:
+            return 0;
+        case OP_NEGATIVE:
+        case OP_EXP:
+        case OP_SGN:
+        case OP_ABS:
+        case OP_COS: 
+        case OP_SIN: 
+        case OP_ACOS:
+        case OP_ASIN:
+        case OP_ATAN: 
+        case OP_SQRT:
+        case OP_NOT:
+        case COLOR_NOT:
+            return 1;
+        default:
+            return 2;
+        }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+// get_associativity
+//
+//      From an opcode, return the associativity of the operation.
+char get_associativity(opcode op)
+{
+    switch (op)
+    {
+        case OP_NEGATIVE:
+        case OP_NOT:
+        case COLOR_NOT:
+            return 'r';
+        default:
+            return 'l';
+    }
 }

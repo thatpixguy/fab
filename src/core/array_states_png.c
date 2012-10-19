@@ -22,7 +22,8 @@ int main(int argc, char **argv) {
    //
    // variables
    //
-   struct fab_vars v = init_vars();
+   struct fab_vars v;
+   init_vars(&v);
    //
    // command line args
    //

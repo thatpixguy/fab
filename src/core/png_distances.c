@@ -16,7 +16,8 @@ main(int argc, char **argv) {
    //
    // local vars
    //
-   struct fab_vars v = init_vars(&v);
+   struct fab_vars v;
+   init_vars(&v);
    int x,y,distances;
    float intensity,distance;
    //

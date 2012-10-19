@@ -1,7 +1,8 @@
 #include "trisolver.hpp"
+#include "math_tree.hpp"
 #include "node.hpp"
+
 #include "switches.hpp"
-#include "geometry.hpp"
 
 #include <iostream>
 #include <cstdio>
@@ -40,82 +41,22 @@ const int EDGE_MAP[16][2][3][2] = {
     {{{-1,-1}, {-1,-1}, {-1,-1}}, {{-1,-1}, {-1,-1}, {-1,-1}}}, // 3210
 };
 
-///////////////////////////////////////////////////////////////////////////////
-
-void TriSolver::evaluate(MathTree* tree, FabVars& v)
-{
-#if MULTITHREADED
-    list<Region> regions = Region(v).split(thread::hardware_concurrency());
-    
-    // This thread needs something to do while waiting for the other threads
-    // to run - pick the first region as this thread's task.
-    Region mine = regions.front();
-    regions.pop_front();
-
-    // Create a thread for each region
-    ThreadList thread_list;
-    list<Region>::iterator it;
-    for (it = regions.begin(); it != regions.end(); ++it)
-        make_new_thread(tree, *it, v, thread_list);
-
-    // Evaluate this thread's region
-    TriSolver t(tree, v);
-    t.evaluate_region(mine);
-    t.save_triangles();
-    
-    wait_for_threads(thread_list);
-#else
-    TriSolver t(tree, v);
-    t.evaluate_region(Region(v));
-    t.save_triangles();
-#endif
-}
 
 ///////////////////////////////////////////////////////////////////////////////
 
-void TriSolver::make_new_thread(MathTree* T, Region R, FabVars& v,
-                                ThreadList& thread_list)
-{
-    thread* newThread = new thread;
-    MathTree* newTree = T->clone();
-    TriSolver* t = new TriSolver(newTree, v);
-
-    *newThread = thread(&TriSolver::evaluate_region, t, R);
-    thread_list.push_back(make_pair(newThread, t));
-}
-
-///////////////////////////////////////////////////////////////////////////////
-
-void TriSolver::wait_for_threads(ThreadList& thread_list)
-{
-    while (!thread_list.empty())
-    {
-        ThreadList::iterator it = thread_list.begin();
-        while(it != thread_list.end())
-            if (it->first->timed_join(boost::system_time()))
-            {
-                delete it->first;
-                it->second->save_triangles();
-                delete it->second->tree;
-                delete it->second;
-                it = thread_list.erase(it);
-            } else {
-                ++it;
-            }
-    }
-}
-
-
-
-///////////////////////////////////////////////////////////////////////////////
-
-TriSolver::TriSolver(MathTree* tree, FabVars& v)
-    : tree(tree), v(v)
+TriSolver::TriSolver(FabVars& v)
+    : Solver(v)
 {
     // Nothing to do here.
 }
 
-void TriSolver::save_triangles()
+TriSolver::TriSolver(MathTree* tree, FabVars& v)
+    : Solver(tree, v)
+{
+    // Nothing to do here.
+}
+
+void TriSolver::save()
 {
     v.add_triangles(triangles);
 }
@@ -129,6 +70,7 @@ void TriSolver::evaluate_region(Region r)
     // point-by-point evaluation rather than recursing.
     if (r.volume == 1) {
         evaluate_voxel(r);
+        v.pb.update(r.volume);
         return;
     }
     
@@ -143,8 +85,10 @@ void TriSolver::evaluate_region(Region r)
     // of the image, then return.
     tribool result = tree->root->result_bool;
     
-    if (!indeterminate(result))
+    if (!indeterminate(result)) {
+        v.pb.update(r.volume);
         return;
+    }
 
     // Split the region and recurse
     list<Region> subregions = r.split();
@@ -219,6 +163,8 @@ void TriSolver::evaluate_voxel(Region r)
            
 }
 
+// Interpolate between a filled and empty point using binary search
+// (after checking in a cache).
 Vec3f TriSolver::interpolate(Vec3f filled, Vec3f empty)
 {
     std::map<Edge, Vec3f>::iterator it;

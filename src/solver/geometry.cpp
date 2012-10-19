@@ -161,14 +161,27 @@ PathSet& PathSet::operator+=(Path rhs)
     if (it != endings.end()) {
         // Find the existing path that we're going to join
         list<Path>::iterator target = it->second;
-        // Remove the existing path from the vertex maps, since
+        
+        // Remove the existing path from the look-up maps, since
         // it's about to be modified
         beginnings.erase(target->front());
         endings.erase(target->back());
         
         // Check to see if we should merge this new segment.
-        // We calculate the area of the triangle that will be deleted
-        // if we decimate, then compare it to the variable decimation_error.
+        //
+        //  Ascii art rendition:
+        //     B
+        //   ----->
+        //   ^   /
+        // A |  / C
+        //   | /
+        //   |/
+        //
+        // A is the last segment of the existing path
+        // B is the first segment of the path being appended
+        // C is the path that we will get if we merge the two.
+        //
+        // Decimation depends on the area of the triangle ABC.
         Path::const_iterator it = target->end();
         Vec3f a = *(--it);
         a = a - *(--it);
@@ -184,11 +197,13 @@ PathSet& PathSet::operator+=(Path rhs)
         float C = c.len();
         float area = (A+B+C)*(B+C-A)*(A+C-B)*(A+B-C);
                 
-        // Merge segment if it is within 1 degree of previous segment
+        // Merge segments if the area of the resulting triangle
+        // is sufficiently small.
         if (area < decimation_error)
             target->pop_back();
 
-        // We have to copy the path, otherwise the splice doesn't work.
+        // We remove the front node (since it is the end of one path
+        // and the start of the other), then splice the paths together.
         rhs.pop_front();
         rhs.splice(rhs.begin(), *target);
         
@@ -223,7 +238,8 @@ PathSet& PathSet::operator+=(Path rhs)
         float C = c.len();
         float area = (A+B+C)*(B+C-A)*(A+C-B)*(A+B-C);
                 
-        // Merge segment if it is within 1 degree of previous segment
+        // Merge segments if the area of the resulting triangle
+        // is sufficiently small.
         if (area < decimation_error)
             target->pop_front();
 

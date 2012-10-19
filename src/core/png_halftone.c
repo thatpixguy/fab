@@ -16,7 +16,8 @@ main(int argc, char **argv) {
    //
    // local vars
    //
-   struct fab_vars v = init_vars(&v);
+   struct fab_vars v;
+   init_vars(&v);
    int points, invert;
    float threshold, size, spacing, offset;
    //

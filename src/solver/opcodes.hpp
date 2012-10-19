@@ -4,7 +4,8 @@
 #include <iostream>
 #include <string>
 
-enum opcode {
+// opcode defines which operator a node is performing.
+enum opcode {  
     // Logical operations
     OP_AND = 0, OP_OR, OP_NEQ, OP_NOT,
     
@@ -33,6 +34,7 @@ enum opcode {
 };
 std::ostream& operator<<(std::ostream& o, const opcode& i);
 
+// Overarching node types
 enum node_type {
     NODE_NUM,
     NODE_TRANS,
@@ -41,19 +43,15 @@ enum node_type {
     NODE_UNKNOWN
 };
 
-#include "parser.hpp"
 
 
-int get_precedence(opcode op);
-Parser::token_type get_token_type(opcode op);
-
-node_type get_node_type(opcode op);
-Parser::io_type get_input(opcode op);
-Parser::io_type get_output(opcode op);
-
-int get_argcount(opcode op);
-char get_associativity(opcode op);
-
+/* std::string dot_color(opcode op)
+   std::string dot_arrow(opcode op)
+   std::string dot_shape(opcode op)
+   std::string dot_label(opcode op)
+ *
+ *  Returns various format strings for graphviz/dot file output.
+ */
 std::string dot_color(opcode op);
 std::string dot_arrow(opcode op);
 std::string dot_shape(opcode op);

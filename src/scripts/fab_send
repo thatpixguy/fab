@@ -16,15 +16,19 @@
 #
 
 commands = {
-    '.rml': 'port=/dev/ttyUSB0; stty -F $port 9600 raw -echo crtscts; cat "$file" > $port',
     '.camm': 'printer=vinyl; lpr -P$printer "$file"',
     #'.camm': 'port=/dev/ttyUSB0; stty -F $port 9600 raw -echo crtscts; cat "$file" > $port',
+     '.dxf': 'qcad "$file"',
     '.epi': 'printer=laser; lpr -P$printer "$file"',
-    '.uni': 'port=/dev/lp0; cat "$file" > $port',
-     '.ps': 'okular "$file"',
       '.g': 'gedit "$file"',
-    '.sbp': 'gedit "$file"',
     '.ord': 'gedit "$file"',
+    #'.plt': 'gedit "$file"',
+    '.plt': 'cp "$file" "/cygdrive/c/Vision Machine Tools/Outbox/$file"',
+     '.ps': 'okular "$file"',
+     '.stl': 'meshlab "$file"',
+    '.rml': 'port=/dev/ttyUSB0; stty -F $port 9600 raw -echo crtscts; cat "$file" > $port',
+    '.sbp': 'gedit "$file"',
+    '.uni': 'port=/dev/lp0; cat "$file" > $port',
    }
 
 #

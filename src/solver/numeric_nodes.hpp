@@ -4,6 +4,8 @@
 #include "node.hpp"
 #include "node_macro.hpp"
 
+// This header file defines nodes with numeric inputs and outputs.
+
 NODE(NumericAbs,  UnaryNode);
 NODE(NumericCos,  UnaryNode);
 NODE(NumericSin,  UnaryNode);
@@ -23,9 +25,9 @@ NODE(NumericATan2, BinaryNode);
 NODE(NumericPow,   BinaryNode);
 
 
-// These two nodes have special forms with variables to keep track of
+// These two nodes have special forms with internal variables to keep track of
 // selective child deactivation.
-class NumericMin : public BinaryNode \
+class NumericMin : public BinaryNode
 {
 public:
     NumericMin();
@@ -36,13 +38,17 @@ public:
     void eval(const FabInterval& X,
               const FabInterval& Y,
               const FabInterval& Z);
+    void activate();
+    void deactivate();
+
+    
 private:
     bool left_cached;
     bool right_cached;
 };
 
 
-class NumericMax : public BinaryNode \
+class NumericMax : public BinaryNode
 {
 public:
     NumericMax();
@@ -53,6 +59,10 @@ public:
     void eval(const FabInterval& X,
               const FabInterval& Y,
               const FabInterval& Z);
+              
+    void activate();
+    void deactivate();
+
 private:
     bool left_cached;
     bool right_cached;

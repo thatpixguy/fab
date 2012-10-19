@@ -17,7 +17,7 @@ def find_eagle():
         
         return eagle_dir + '/EAGLE.app/Contents/MacOS/EAGLE'
     else:
-        if subprocess.call(['which','convert'],
+        if subprocess.call(['which','eagle'],
                            stdout = open(os.devnull, 'w')):
             sys.stderr.write("Error: EAGLE not found.\n")
             sys.exit(1)
@@ -31,6 +31,7 @@ def create_images(name, resolution = 1500):
 
     script = '''
 ratsnest; write;
+set palette black; window;
 display none top vias pads;
 export image '{name}.top.png' monochrome {resolution};
 display none bottom vias pads;
@@ -81,6 +82,7 @@ if __name__ == '__main__':
     sys.argv = sys.argv[1:]
     resolution = 1500
     force_doublesided = False
+    
     while sys.argv:
         if sys.argv[0] == '--resolution':
             try:
@@ -118,8 +120,8 @@ if __name__ == '__main__':
     
     print "Rendering images."
     create_images(name, resolution)
-    
-    
+
+    # Check to make sure that imagemagick is installed.
     if subprocess.call(['which','convert'], stdout = open(os.devnull, 'w')):
         sys.stderr.write("""Error: 'convert' not found.
 ImageMagick command-line tools must be installed to use eagle_png.""")

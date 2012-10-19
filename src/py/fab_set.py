@@ -448,6 +448,12 @@ class fab_frame(wx.Frame):
          self.path_panel.frame3_ibot.SetValue('0');\
          self.path_panel.frame3_itop.SetValue('1');\
          self.sbp_panel.speed.SetValue('20');"
+         
+   #
+   # set .png .plt defaults
+   #  
+   def set_png_plt(self):
+      self.defaults = {}
    #
    # set .cad .sbp defaults
    #
