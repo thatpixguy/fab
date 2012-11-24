@@ -1,3 +1,11 @@
+import cPickle as pickle
+import os
+import Queue
+import random
+import sys
+import threading
+import weakref
+
 import wx
 
 from koko.frame import MainFrame
@@ -5,42 +13,42 @@ from koko.about import AboutBox, NAME
 import koko.dialogs as dialogs
 import koko.cmd as cmd
 
-import cPickle as pickle
-import os
-import Queue
-import random
-import sys
-import threading
+import koko.template
 
+import koko.globals as globals
 
 class App(wx.App):
     def OnInit(self):
+    
+        globals.APP = weakref.proxy(self)
+    
         callbacks = {
-            'New':     self.onNew,
-            'Save':    self.onSave,
-            'Save As': self.onSaveAs,
-            'Reload':  self.onReload,
-            'Open':    self.onOpen,
-            'Exit':    self.onExit,
-            'About':   AboutBox,
-            'Show output':      self.show_output,
-            'Show script':      self.show_script,
-            'Snap to bounds':   self.snap_bounds,
-            'Re-render':        self.onTextChange,
-            'saved':   lambda e=None: self.savePoint(True),
-            'unsaved': lambda e=None: self.savePoint(False),
-            'text':    self.onTextChange,
-            'view':    self.onViewChange,
-            'idle':    self.idle,
-            '.math':   self.export,
-            '.png':    self.export,
-            '.svg':    self.export,
-            '.stl':    self.export,
-            '.dot':    self.export,
+            'New':               self.onNew,
+            'New PCB':           self.onNewPCB,
+            'Save':              self.onSave,
+            'Save As':           self.onSaveAs,
+            'Reload':            self.onReload,
+            'Open':              self.onOpen,
+            'Exit':              self.onExit,
+            'About':             AboutBox,
+            'Show output':       self.show_output,
+            'Show script':       self.show_script,
+            'Snap to bounds':    self.snap_bounds,
+            'Re-render':         self.onTextChange,
+            'saved':             lambda e=None: self.savePoint(True),
+            'unsaved':           lambda e=None: self.savePoint(False),
+            'text':              self.onTextChange,
+            'view':              self.onViewChange,
+            'idle':              self.idle,
+            '.math':             self.export,
+            '.png':              self.export,
+            '.svg':              self.export,
+            '.stl':              self.export,
+            '.dot':              self.export,
             'Start fab modules': self.start_fab,
             'Update fab file':   self.update_fab,
-            'koko.lib.shapes': self.show_library,
-            'koko.lib.text':   self.show_library
+            'koko.lib.shapes':   self.show_library,
+            'koko.lib.text':     self.show_library
             }
         
         self.threads = []
@@ -66,14 +74,13 @@ class App(wx.App):
         
         # Create frame
         self.frame = MainFrame(callbacks)
-        
+        globals.FRAME = weakref.proxy(self.frame)
+
         # Link to the canvas's point set
         self.shape_set = self.frame.canvas.shape_set
         
         if self.filename:
             self.load()
-        
-
         
         # Update the window title
         self.savePoint(True)
@@ -95,7 +102,6 @@ class App(wx.App):
         self.frame.canvas.SetFocus()
         
         return True
-    
     
     @property
     def directory(self):
@@ -136,10 +142,30 @@ class App(wx.App):
         '''Creates a new file from the default template.'''
         if self.saved or dialogs.warn_changes():
             self.filename = ''
-            self.frame.editor.load_template()
-            self.frame.canvas.shape_set.clear()
-            if self.frame.canvas.edit_panel:
-                self.frame.canvas.close_edit_panel()
+            
+            globals.EDITOR.text = koko.template.TEMPLATE
+            
+            if globals.CANVAS.edit_panel:
+                globals.CANVAS.close_edit_panel()
+                
+            globals.SHAPES.clear()
+            
+            self.first_render = True
+
+################################################################################
+
+    def onNewPCB(self, evt=None):
+        '''Creates a new file from the PCB template.'''
+        if self.saved or dialogs.warn_changes():
+            self.filename = ''
+            
+            globals.EDITOR.text = koko.template.PCB_TEMPLATE
+            
+            if globals.CANVAS.edit_panel:
+                globals.CANVAS.close_edit_panel()
+                
+            globals.SHAPES.clear()
+            
             self.first_render = True
 
 ################################################################################        
@@ -289,7 +315,7 @@ Please pick a new filename.''')
            an event argument (used to interrupt) and a frame argument
            (which it will use to update the GUI)'''
         e = threading.Event()
-        kwargs.update({'event':e, 'frame':self.frame})
+        kwargs['event'] = e
         t = threading.Thread(target=callable, args=args, kwargs=kwargs)
         t.daemon = True
         t.start()

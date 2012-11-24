@@ -10,12 +10,12 @@
 using namespace std;
 FabVars::FabVars(output_mode o, int argc, char** argv)
     : ni(-1), nj(-1), nk(-1),
-      min_volume(-1),
+      min_volume(-1), min_area(-1),
       xmin(0), ymin(0), zmin(0),
       dx(0), dy(0), dz(0),
       pixels_per_mm(10), mm_per_unit(-1), quality(8),
       decimation_error(1),
-      mode(SOLVE_BOOL), output(o),
+      mode(SOLVE_BOOL), output(o), projection(false),
       infile_name(""), outfile_name(""),
       red(NULL), green(NULL), blue(NULL), intensity(NULL)
 {
@@ -23,22 +23,22 @@ FabVars::FabVars(output_mode o, int argc, char** argv)
     infile_name = argv[0];
     outfile_name = argv[1];
 
+    pixels_per_mm = 10;
+        
     // The different programs have different input argument orders.
     if (output == OUTPUT_PNG) {
-        pixels_per_mm = 10;
         if (argc >= 3)
             pixels_per_mm = atof(argv[2]);
         if (argc >= 4)
             nk = atoi(argv[3]);
     }
     else if (output == OUTPUT_STL) {
-        pixels_per_mm = 10;
         if (argc >= 3)
             pixels_per_mm = atof(argv[2]);
         if (argc >= 4)
             quality = atoi(argv[3]);
-    } else if (output == OUTPUT_SVG) {
-        pixels_per_mm = 10;
+    }
+    else if (output == OUTPUT_SVG) {
         if (argc >= 3)
             pixels_per_mm = atof(argv[2]);
         if (argc >= 4)
@@ -67,7 +67,7 @@ FabVars::~FabVars()
         green = NULL;
         delete [] blue;
         blue = NULL;
-    } else if (mode == SOLVE_BOOL && intensity) {
+    } else if ((mode == SOLVE_BOOL || mode == SOLVE_REAL) && intensity) {
         for (int y = 0; y < nj; ++y)
             delete [] intensity[y];
         delete [] intensity;
@@ -137,7 +137,8 @@ void FabVars::load()
     
     // Pick a minimum volume below which we won't do
     // octree recursion.
-    min_volume = 128;
+    min_volume = 64;
+    min_area   = 8;
     
     // Pick a stroke size for drawing SVGs
     stroke = min(ni, nj) / (pixels_per_mm * 1000.);
@@ -217,9 +218,22 @@ FabInterval FabVars::z(float kmin, float kmax) const
 
 float FabVars::scale(unsigned int k) const
 {
-    if (nk == 1)
-        return mode == SOLVE_BOOL ? 65535 : 1;
-    return k/float(nk - 1) * (mode == SOLVE_BOOL ? 65535 : 1);
+    if (nk == 1) {
+        if (mode == SOLVE_BOOL || mode == SOLVE_REAL)
+            return 65535;
+        else
+            return 1;
+    }
+    
+    return k/float(nk - 1) *
+           ((mode == SOLVE_BOOL || mode == SOLVE_REAL) ? 65535 : 1);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+int FabVars::k(float z) const
+{
+    return (z - zmin) * float(nk) / dz;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -271,7 +285,7 @@ void FabVars::add_paths(const PathSet& p)
 
 void FabVars::write_png()
 {
-    if (mode == SOLVE_BOOL)
+    if (mode == SOLVE_BOOL || mode == SOLVE_REAL)
         fab_write_png_K16(this, outfile_name.c_str());
     else if (mode == SOLVE_RGB)
         fab_write_png_RGB24(this, outfile_name.c_str());
@@ -349,7 +363,7 @@ void FabVars::write_svg()
     fstream svg_out;
     svg_out.open(outfile_name.c_str(), fstream::trunc | fstream::out);
     svg_out << "<?xml version=\"1.0\" encoding=\"ISO-8859-1\" standalone=\"no\"?>\n"
-            << "<!-- Created with math_stl (kokompe.cba.mit.edu) -->\n"
+            << "<!-- Created with math_svg (kokompe.cba.mit.edu) -->\n"
             << "<!DOCTYPE svg PUBLIC \"-//W3C//DTD SVG 20010904//EN\"\n"
             << "    \"http://www.w3.org/TR/2001/REC-SVG-20010904/DTD/svg10.dtd\">\n"
             << "<svg \n"

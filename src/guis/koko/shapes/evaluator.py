@@ -1,0 +1,115 @@
+import koko.globals
+import threading
+
+class Evaluator(object):
+    '''Class to do lazy evaluation of expressions.'''
+    
+    def __init__(self, parent, expr, out):
+        self.parent = parent
+        self.expr = expr
+        self.type = out
+
+        if self.type is not None:
+            self.result = self.type()
+        else:
+            self.result = None
+
+        self.valid = False
+        self.modified = True
+        self.cached = False
+        
+    def eval(self):
+        '''Evaluate the given expression.
+        
+           Sets self.valid to True or False depending on whether the
+           evaluation succeeded.'''
+        
+        if self.cached:
+            return self.result
+        
+        # Prevent recursive loops (e.g. defining pt0.x = pt0.x)
+        try:
+            if self.recursing:
+                self.valid = False
+                raise RuntimeError('Bad recursion')
+        except AttributeError:
+            self.recursing = True
+
+        # Set a few variables
+        self.valid = True
+        
+        # Tell the geometry dictionary who is looking things up
+        koko.globals.SHAPES.map.push_child(self.parent)
+        
+        try:
+            #Evaluate the magical expression
+            c = eval(self._expr, {}, koko.globals.SHAPES.map)
+        except:
+            self.valid = False
+        else:
+            # Coerce into the desired type
+            if self.type is not None:
+                if not isinstance(c, self.type):
+                    try:
+                        c = self.type(c)
+                    except: 
+                        self.valid = False
+                    
+            # Make sure that we haven't ended up invalid
+            # due to bad recursion somewhere down the line
+            if self.valid:
+                self.result = c
+
+        # We're no longer recursing
+        del self.recursing
+
+        # Inform the monitor of what result was obtained
+        koko.globals.SHAPES.map.set_value(self.result)
+        koko.globals.SHAPES.map.pop_child()
+
+        self.cached = True
+        return self.result
+            
+    
+    @property
+    def expr(self):
+        try:
+            return self._expr
+        except AttributeError:
+            self._expr = ''
+            return self._expr
+    @expr.setter
+    def expr(self, value):
+        value = str(value)
+        if self.expr != value:
+            self.modified = True
+        self._expr = value
+        
+
+################################################################################
+import re
+
+class NameEvaluator(Evaluator):
+    '''Class to store valid variable names.'''
+    def __init__(self, parent, expr):
+        Evaluator.__init__(self, parent, expr, str)
+    
+    def eval(self):        
+        if re.match('[a-zA-Z_][0-9a-zA-Z_]*$', self.expr):
+            self.valid = True
+            self.result = self.expr
+        else:
+            self.valid = False
+        return self.result
+
+################################################################################
+
+class StrEvaluator(Evaluator):
+    '''Class to store a generic string.'''
+    def __init__(self, parent, expr):
+        Evaluator.__init__(self, parent, expr, str)
+        self.valid = True
+        
+    def eval(self):
+        self.result = self.expr
+        return self.result

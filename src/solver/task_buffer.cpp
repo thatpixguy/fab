@@ -12,6 +12,12 @@ Task::Task()
     // Nothing to do here
 }
 
+Task::Task(Region region)
+    : region(region), tree(NULL)
+{
+    // Nothing to do here.
+}
+
 Task::Task(Region region, MathTree* tree)
     : region(region), tree(tree)
 {
@@ -39,10 +45,20 @@ TaskBuffer::~TaskBuffer()
 }
 
 
+bool TaskBuffer::full() const
+{
+    return (unassigned_tasks >= size - active_threads);
+}
+
 // Add a task to the buffer and notify the corresponding thread.
+bool TaskBuffer::add(Region region)
+{
+    return add(region, NULL);
+}
+
 bool TaskBuffer::add(Region region, MathTree* tree)
 {
-
+    
     {   // Check to see if a thread is available for this
         // new unassigned task.
         lock_guard lock(master_mutex);
@@ -63,7 +79,10 @@ bool TaskBuffer::add(Region region, MathTree* tree)
     
     {   // Fill the task slot
         lock_guard lock(tasks[pos].mutex);
-        tasks[pos].task = Task(region, tree->clone());
+        if (tree)
+            tasks[pos].task = Task(region, tree->clone());
+        else
+            tasks[pos].task = Task(region);
         tasks[pos].ready = true;
 //        cout << "Added new task with region " << region << ' ' << tasks[pos].task.tree << endl;
     }

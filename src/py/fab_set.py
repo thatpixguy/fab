@@ -227,7 +227,7 @@ class fab_frame(wx.Frame):
       self.defaults["wax finish cut (1/8)"]\
       = "self.path_panel.diameter.SetValue('3.175');\
          self.path_panel.number.SetValue('1');\
-         self.path_panel.overlap.SetValue('0.9');\
+         self.path_panel.overlap.SetValue('0.5');\
          self.path_panel.error.SetValue('1.5');\
          self.path_panel.frame3_xy.SetValue(False);\
          self.path_panel.frame3_xz.SetValue(True);\
@@ -286,7 +286,7 @@ class fab_frame(wx.Frame):
       = "self.png_panel.resolution.SetValue('25');\
          self.path_panel.diameter.SetValue('3.175');\
          self.path_panel.number.SetValue('1');\
-         self.path_panel.overlap.SetValue('0.9');\
+         self.path_panel.overlap.SetValue('0.5');\
          self.path_panel.error.SetValue('1.5');\
          self.path_panel.frame3_xy.SetValue(False);\
          self.path_panel.frame3_xz.SetValue(True);\
@@ -343,7 +343,7 @@ class fab_frame(wx.Frame):
       = "self.png_panel.resolution.SetValue('25');\
          self.path_panel.diameter.SetValue('3.175');\
          self.path_panel.number.SetValue('1');\
-         self.path_panel.overlap.SetValue('0.9');\
+         self.path_panel.overlap.SetValue('0.5');\
          self.path_panel.error.SetValue('1.5');\
          self.path_panel.frame3_xy.SetValue(False);\
          self.path_panel.frame3_xz.SetValue(True);\
@@ -371,7 +371,7 @@ class fab_frame(wx.Frame):
       self.defaults["inches, 1/8, wax, finish"]\
       = "self.path_panel.diameter.SetValue('3.175');\
          self.path_panel.number.SetValue('1');\
-         self.path_panel.overlap.SetValue('0.9');\
+         self.path_panel.overlap.SetValue('0.5');\
          self.path_panel.error.SetValue('1.5');\
          self.path_panel.frame3_xy.SetValue(False);\
          self.path_panel.frame3_xz.SetValue(True);\
@@ -396,7 +396,7 @@ class fab_frame(wx.Frame):
       self.defaults["mm, 1/8, wax, finish"]\
       = "self.path_panel.diameter.SetValue('3.175');\
          self.path_panel.number.SetValue('1');\
-         self.path_panel.overlap.SetValue('0.9');\
+         self.path_panel.overlap.SetValue('0.5');\
          self.path_panel.error.SetValue('1.5');\
          self.path_panel.frame3_xy.SetValue(False);\
          self.path_panel.frame3_xz.SetValue(True);\
@@ -440,7 +440,7 @@ class fab_frame(wx.Frame):
       self.defaults["wax finish cut (1/8)"]\
       = "self.path_panel.diameter.SetValue('3.175');\
          self.path_panel.number.SetValue('1');\
-         self.path_panel.overlap.SetValue('0.9');\
+         self.path_panel.overlap.SetValue('0.5');\
          self.path_panel.error.SetValue('1.5');\
          self.path_panel.frame3_xy.SetValue(False);\
          self.path_panel.frame3_xz.SetValue(True);\
@@ -478,7 +478,7 @@ class fab_frame(wx.Frame):
       = "self.png_panel.resolution.SetValue('10');\
          self.path_panel.diameter.SetValue('3.175');\
          self.path_panel.number.SetValue('1');\
-         self.path_panel.overlap.SetValue('0.9');\
+         self.path_panel.overlap.SetValue('0.5');\
          self.path_panel.error.SetValue('1.5');\
          self.path_panel.frame3_xy.SetValue(False);\
          self.path_panel.frame3_xz.SetValue(True);\
@@ -510,7 +510,7 @@ class fab_frame(wx.Frame):
       = "self.png_panel.resolution.SetValue('10');\
          self.path_panel.diameter.SetValue('3.175');\
          self.path_panel.number.SetValue('1');\
-         self.path_panel.overlap.SetValue('0.9');\
+         self.path_panel.overlap.SetValue('0.5');\
          self.path_panel.error.SetValue('1.5');\
          self.path_panel.frame3_xy.SetValue(False);\
          self.path_panel.frame3_xz.SetValue(True);\
@@ -540,7 +540,7 @@ class fab_frame(wx.Frame):
       self.defaults["inches, 1/8, wax, finish"]\
       = "self.path_panel.diameter.SetValue('3.175');\
          self.path_panel.number.SetValue('1');\
-         self.path_panel.overlap.SetValue('0.9');\
+         self.path_panel.overlap.SetValue('0.5');\
          self.path_panel.error.SetValue('1.5');\
          self.path_panel.frame3_xy.SetValue(False);\
          self.path_panel.frame3_xz.SetValue(True);\
@@ -565,7 +565,7 @@ class fab_frame(wx.Frame):
       self.defaults["mm, 1/8, wax, finish"]\
       = "self.path_panel.diameter.SetValue('3.175');\
          self.path_panel.number.SetValue('1');\
-         self.path_panel.overlap.SetValue('0.9');\
+         self.path_panel.overlap.SetValue('0.5');\
          self.path_panel.error.SetValue('1.5');\
          self.path_panel.frame3_xy.SetValue(False);\
          self.path_panel.frame3_xz.SetValue(True);\
@@ -668,7 +668,7 @@ class fab_frame(wx.Frame):
       = "self.png_panel.resolution.SetValue('25');\
          self.path_panel.diameter.SetValue('3.175');\
          self.path_panel.number.SetValue('1');\
-         self.path_panel.overlap.SetValue('0.9');\
+         self.path_panel.overlap.SetValue('0.5');\
          self.path_panel.error.SetValue('1.5');\
          self.path_panel.frame3_xy.SetValue(False);\
          self.path_panel.frame3_xz.SetValue(True);\
@@ -722,7 +722,7 @@ class fab_frame(wx.Frame):
       = "self.png_panel.resolution.SetValue('25');\
          self.path_panel.diameter.SetValue('3.175');\
          self.path_panel.number.SetValue('1');\
-         self.path_panel.overlap.SetValue('0.9');\
+         self.path_panel.overlap.SetValue('0.5');\
          self.path_panel.error.SetValue('1.5');\
          self.path_panel.frame3_xy.SetValue(False);\
          self.path_panel.frame3_xz.SetValue(True);\
@@ -752,7 +752,7 @@ class fab_frame(wx.Frame):
       self.defaults["inches, 1/8, wax, finish"]\
       = "self.path_panel.diameter.SetValue('3.175');\
          self.path_panel.number.SetValue('1');\
-         self.path_panel.overlap.SetValue('0.9');\
+         self.path_panel.overlap.SetValue('0.5');\
          self.path_panel.error.SetValue('1.5');\
          self.path_panel.frame3_xy.SetValue(False);\
          self.path_panel.frame3_xz.SetValue(True);\
@@ -777,7 +777,7 @@ class fab_frame(wx.Frame):
       self.defaults["mm, 1/8, wax, finish"]\
       = "self.path_panel.diameter.SetValue('3.175');\
          self.path_panel.number.SetValue('1');\
-         self.path_panel.overlap.SetValue('0.9');\
+         self.path_panel.overlap.SetValue('0.5');\
          self.path_panel.error.SetValue('1.5');\
          self.path_panel.frame3_xy.SetValue(False);\
          self.path_panel.frame3_xz.SetValue(True);\

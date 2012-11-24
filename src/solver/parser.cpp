@@ -132,23 +132,6 @@ void Parser::wrap_argument(parse_token& arg, io_type desired)
 }
 
 
-// Wraps a real-valued node f(x, y, z) into the boolean f(x, y, z) < 0
-void Parser::wrap_real(parse_token& arg)
-{
-    wrap_argument(arg, IO_NUM);
-    
-    Node* zero = new NumericConst(0);
-    cache_node(zero);
-    
-    Node* lessThan = new TransitionLt();
-    static_cast<BinaryNode*>(lessThan)->set_children(arg.n, zero);
-    cache_node(lessThan);
-    
-    arg.n = lessThan;
-    arg.output = IO_BOOL;
-}
-
-
 void print_list(list<Parser::parse_token> L, ostream& o)
 {
     list<Parser::parse_token>::iterator it;
@@ -492,9 +475,9 @@ void Parser::operator_to_stack(parse_token& o1)
 bool str_match(const char* s1, const char* s2)
 {
     do
-        if (*s1++ != *s2++)
+        if (!*s1 || *s1++ != *s2++)
             return false;
-    while (*s1 && *s2);
+    while (*s2);
     
     return true;
 }
@@ -990,8 +973,7 @@ MathTree* Parser::parse(string input, solver_mode& mode)
     else if (mode == SOLVE_RGB)
         wrap_argument(output.front(), IO_COLOR);
     else if (mode == SOLVE_REAL) {
-        wrap_real(output.front());
-        mode = SOLVE_BOOL;
+        wrap_argument(output.front(), IO_NUM);
     }
     
     // Add a watcher to the top node of the tree (so that it doesn't get

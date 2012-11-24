@@ -15,16 +15,15 @@ using boost::thread;
 
 void Solver::run()
 {
+    Task task = task_buffer->next();
     task_buffer->hello();
     
-    Task task = task_buffer->next();
-    
     while (task.region.volume != 0) {
-        tree = task.tree;
+        if (task.tree) {
+            delete tree;
+            tree = task.tree;
+        }
         evaluate_region(task.region);
-//        cout << "Solver::run() is done with region " << task.region
-//             << "\n\tand is deleting tree " << tree << endl;
-        delete tree;
         task = task_buffer->next();
     }
 

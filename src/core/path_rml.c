@@ -25,7 +25,7 @@ void fab_write_rml(struct fab_vars *v, char *output_file_name, float speed, int 
    xscale = 40.0*v->dx/(v->nx-1.0); // 40/mm
    yscale = 40.0*v->dy/(v->ny-1.0); // 40/mm
    if (v->nz > 1)
-      zscale = 40.0*v->dz/(v->nz-1.0); // 40/mm
+      zscale = 40.0*v->dz/v->nz; // 40/mm
    else
       zscale = 0;
    xoffset = 40.0*v->xmin;

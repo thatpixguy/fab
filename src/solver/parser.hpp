@@ -184,14 +184,6 @@ private:
      */
     void wrap_argument(parse_token& arg, io_type desired);
     
-    
-    /* void wrap_real(parse_token& arg)
-     *
-     *  Converts a real-valued node f(x,y,z) into a boolean f(x,y,z) < 0
-     *  (used in distance-metric math strings)
-     */    
-    void wrap_real(parse_token& arg);
-
     // The math string in question
     const char* math_string;
     

@@ -24,7 +24,7 @@ void fab_write_g(struct fab_vars *v, char *output_file_name, int direction, floa
    xscale = units*v->dx/(v->nx-1.0);
    yscale = units*v->dy/(v->ny-1.0);
    if (v->nz > 1)
-      zscale = units*v->dz/(v->nz-1.0);
+      zscale = units*v->dz/v->nz;
    else
       zscale = 0;
    xoffset = units*v->xmin;

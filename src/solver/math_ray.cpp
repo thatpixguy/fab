@@ -2,7 +2,7 @@
 #include <cstring>
 
 #include "fabvars.hpp"
-#include "imagesolver.hpp"
+#include "raycaster.hpp"
 #include "math_tree.hpp"
 #include "node.hpp"
 #include "parser.hpp"
@@ -15,11 +15,10 @@ using namespace std;
 
 void print_help()
 {
-    cout << "command line: math_png in.math out.png [resolution [slices]]\n"
+    cout << "command line: math_ray in.math out.png [resolution]\n"
          << "   in.math = input math string file\n"
          << "   out.png = output PNG image\n"
-         << "   resolution = pixels per mm (optional, default 10)\n"
-         << "   slices = number of z slices (optional, default full)\n";
+         << "   resolution = pixels per mm (optional, default 10)\n";
 }
 
 
@@ -32,6 +31,12 @@ int main(int argc, char** argv)
  
     argv++; argc--; // Remove executable name from argv
     FabVars v(OUTPUT_PNG, argc, argv);
+    v.projection = true;
+    
+    if (v.mode != SOLVE_REAL) {
+        cerr << "Error: math_ray only works on Real math strings." << endl;
+        exit(4);
+    }
 
     Parser p;
     MathTree* tree = p.parse(v.math_string, v.mode);
@@ -46,10 +51,10 @@ int main(int argc, char** argv)
                                          << endl;
 
 #if MULTITHREADED
-    ThreadManager<ImageSolver> tm(v);
+    ThreadManager<Raycaster> tm(v);
     tm.evaluate(tree);
 #else
-    ImageSolver s(tree, v);
+    Raycaster s(tree, v);
     s.evaluate_region(Region(v));
 #endif
 

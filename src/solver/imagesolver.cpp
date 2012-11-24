@@ -42,18 +42,26 @@ void ImageSolver::evaluate_region(Region r)
     FabInterval Z = v.z(r.kmin, r.kmax);
 
     tree->eval(X, Y, Z);
+    
     // If the result was unambiguous, then fill in that part
     // of the image, then return.
     if (v.mode == SOLVE_BOOL) {
         tribool result = tree->root->result_bool;
         if (result)
             v.fill(r);
-        
         if (!indeterminate(result)) {
             v.pb.update(r.volume);
             return;
         }
-        
+    } else if (v.mode == SOLVE_REAL) {
+        tribool result = tree->root->result_interval <= FabInterval(0);
+
+        if (result)
+            v.fill(r);
+        if (!indeterminate(result)) {
+            v.pb.update(r.volume);
+            return;
+        }   
     } else if (v.mode == SOLVE_RGB) {
         int result = tree->root->result_color;
         if (result != -1) {
@@ -123,18 +131,19 @@ void ImageSolver::evaluate_points(Region r)
                 float Y = v.y(j);
                 
                 // If we can't brighten the image, skip this point.
-                if (v.mode == SOLVE_BOOL && scale <= v.intensity[v.nj - j - 1][i])
+                if ((v.mode == SOLVE_BOOL || v.mode == SOLVE_REAL)
+                     && scale <= v.intensity[v.nj - j - 1][i])
                     continue;
 
                 // Evaluate tree                        
                 tree->eval(X, Y, Z);
                 
                 // Fill in greyscale image
-                if (v.mode == SOLVE_BOOL) {
-                    if (tree->root->result_bool)
+                if ((v.mode == SOLVE_BOOL && tree->root->result_bool) ||
+                    (v.mode == SOLVE_REAL && tree->root->result_float <= 0))
+                {
                         v.intensity[v.nj - j - 1][i] = scale;
-                }
-                
+                }                
                 // Fill in color image
                 else if (v.mode == SOLVE_RGB) {
                     int result = tree->root->result_color;
@@ -165,7 +174,7 @@ void ImageSolver::cull_regions(list<Region>& subregions)
 {
     list<Region>::iterator it = subregions.begin();
     
-    if (v.mode == SOLVE_BOOL) {
+    if (v.mode == SOLVE_BOOL || v.mode == SOLVE_REAL) {
         while (it != subregions.end()) {
             int scale = v.scale(it->kmax - 1);
             bool cull = true;

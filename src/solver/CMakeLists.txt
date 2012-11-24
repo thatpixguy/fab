@@ -7,6 +7,7 @@ find_package(PNG REQUIRED)
 include_directories(${PNG_INCLUDE_DIR})
 
 set(CMAKE_CXX_FLAGS "-Wall -O3")
+#set(CMAKE_CXX_FLAGS "-Wall -g")
 
 ADD_LIBRARY(MathTree
             parser.cpp math_tree.cpp region.cpp
@@ -16,11 +17,19 @@ ADD_LIBRARY(MathTree
             progress_bar.cpp task_buffer.cpp solver.cpp)
 
 ADD_EXECUTABLE(math_png math_png.cpp imagesolver.cpp)
+ADD_EXECUTABLE(math_ray math_ray.cpp raycaster.cpp)
 ADD_EXECUTABLE(math_dot math_dot.cpp)
 ADD_EXECUTABLE(math_stl math_stl.cpp trisolver.cpp)
 ADD_EXECUTABLE(math_svg math_svg.cpp edgesolver.cpp)
 
 TARGET_LINK_LIBRARIES (math_png
+   MathTree
+   ${PNG_LIBRARY}
+   ${Boost_THREAD_LIBRARY}
+   ${Boost_SYSTEM_LIBRARY}
+)
+
+TARGET_LINK_LIBRARIES (math_ray
    MathTree
    ${PNG_LIBRARY}
    ${Boost_THREAD_LIBRARY}
@@ -50,6 +59,7 @@ TARGET_LINK_LIBRARIES (math_svg
 
 if( ${CMAKE_PROJECT_NAME} MATCHES fabmod )
   install(TARGETS math_png DESTINATION ${PROJECT_SOURCE_DIR}/../bin)
+  install(TARGETS math_ray DESTINATION ${PROJECT_SOURCE_DIR}/../bin)
   install(TARGETS math_dot DESTINATION ${PROJECT_SOURCE_DIR}/../bin)
   install(TARGETS math_stl DESTINATION ${PROJECT_SOURCE_DIR}/../bin)
   install(TARGETS math_svg DESTINATION ${PROJECT_SOURCE_DIR}/../bin)

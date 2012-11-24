@@ -16,7 +16,8 @@
 #include "progress_bar.hpp"
 
 enum solver_mode { SOLVE_BOOL, SOLVE_RGB, SOLVE_REAL };
-enum output_mode { OUTPUT_PNG, OUTPUT_STL, OUTPUT_SVG, OUTPUT_NONE };
+enum output_mode { OUTPUT_PNG, OUTPUT_STL,
+                   OUTPUT_SVG, OUTPUT_NONE };
 
 typedef struct FabVars {
     /* FabVars(output_mode o)
@@ -106,6 +107,13 @@ typedef struct FabVars {
     FabInterval y(float jmin, float jmax) const;
     FabInterval z(float kmin, float kmax) const;
     
+    
+    /* int k(float z) const
+     *
+     *  Converts from z coordinate to pixel grid value k
+     */
+    int k(float z) const;
+    
     /* float scale(unsigned int k) const
      *
      *  Returns pixel brightness at a given lattice height.
@@ -117,8 +125,10 @@ typedef struct FabVars {
     // Size of the lattice grid, in pixels/voxels
     int ni,nj,nk;
     
-    // Minimum volume below which octree recursion won't occur
+    // Minimum volume below which octree recursion won't occur.
     int min_volume;
+    // Minimum area below which quadtree recursion won't occur.
+    int min_area;
     
     // Position and size of the lattice in cad units
     double xmin,ymin,zmin;
@@ -142,6 +152,9 @@ typedef struct FabVars {
     
     // png, svg, stl, or none
     output_mode output;
+    
+    // 2D or 3D evaluation style?
+    bool projection;
     
     // Input and output file names
     std::string infile_name;
