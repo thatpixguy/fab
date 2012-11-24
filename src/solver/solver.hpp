@@ -27,7 +27,7 @@ public:
         : tree(NULL), task_buffer(NULL), v(v) {}
     
     
-    virtual ~Solver() { /* Nothing to do here */ }
+    virtual ~Solver() { delete tree; }
     
 
     /* virtual void evaluate_region(Region R) = 0

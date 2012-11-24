@@ -1,10 +1,13 @@
-import wx
-from koko.shape_set import ShapeSet
-from koko.edit_panel import EditPanel
-from koko.point import Point
 import os
+import weakref
 
-import koko.singletons as singletons
+import wx
+
+import koko.shapes.menu
+
+from koko.shapes.shape_set import ShapeSet
+from koko.edit_panel import EditPanel
+import koko.globals as globals
 
 from themes import DARK_THEME
 
@@ -61,8 +64,6 @@ class Canvas(wx.Panel):
 
         # Callback to trigger a rerender                
         self.view_change = callbacks['view']
-        self.unsaved_callback = callbacks['unsaved']
-        self.unsaved = True
         
         # Create a default image for the initial drawing
         width, height = self.Size
@@ -77,6 +78,8 @@ class Canvas(wx.Panel):
         
         # Interactive geometry tools
         self.shape_set = ShapeSet()
+        globals.SHAPES = weakref.proxy(self.shape_set)
+        
         self.edit_panel = None
         self.drag_target = None
         
@@ -84,8 +87,9 @@ class Canvas(wx.Panel):
         self.undo_stack = []
         self.push_stack(callback=False)
         
-        singletons.canvas = self
-        
+        # We are not unsaved at the start
+        self.unsaved_callback = callbacks['unsaved']
+        self.unsaved = False
         
 ################################################################################
 
@@ -116,9 +120,11 @@ class Canvas(wx.Panel):
             self.drag_target.drag(delta.x/self.scale, -delta.y/self.scale)
             self.did_drag = True
             changed = True
-            
-        if self.shape_set.check_hover():
-            changed = True
+        else:
+            x, y = self.pixel_to_pos(*self.mouse)
+            r    = 5/self.scale
+            if self.shape_set.check_hover(x, y, r):
+                changed = True
   
         if changed:
             self.Refresh()
@@ -129,7 +135,14 @@ class Canvas(wx.Panel):
         '''Records a left click event in the canvas.'''
         self.click = self.mouse
         
-        self.drag_target = self.shape_set.get_target()
+        x, y = self.pixel_to_pos(*self.mouse)
+        r    = 10/self.scale
+        
+        if self.drag_target:
+            self.drag_target.drop()
+            self.shape_set.check_hover(x, y, r)
+        
+        self.drag_target = self.shape_set.get_target(x, y, r)
         if self.drag_target is not None:
             self.drag_target.dragging = True
             self.did_select = True
@@ -145,7 +158,11 @@ class Canvas(wx.Panel):
 
     def mouse_dclick(self, event):
         '''Double-click to open up the point editing box.'''
-        target = self.shape_set.get_target()
+        
+        x, y = self.pixel_to_pos(*self.mouse)
+        r    = 10/self.scale
+        
+        target = self.shape_set.get_target(x, y, r)
         if target is not None:
             self.open_edit_panel(target)
     
@@ -155,8 +172,7 @@ class Canvas(wx.Panel):
         '''If we just did a null click (no dragging, no selecting)
            then deselect the currently selected node.'''
         if self.did_select == False and self.did_drag == False:
-            if self.edit_panel:
-                self.close_edit_panel()
+            self.close_edit_panel()
 
         if self.drag_target:
             self.drag_target.drop()
@@ -196,7 +212,12 @@ class Canvas(wx.Panel):
             if self.can_undo:
                 self.undo()
         elif event.GetKeyCode() == 127:
-            target = self.shape_set.get_target()
+        
+            x, y = self.pixel_to_pos(*self.mouse)
+            r    = 10/self.scale
+            
+            target = self.shape_set.get_target(x, y, r)
+            
             if self.edit_panel and self.edit_panel.target == target:
                 self.close_edit_panel()
             self.shape_set.delete(target)
@@ -212,11 +233,14 @@ class Canvas(wx.Panel):
         '''Open an edit panel aimed at the current target.'''
         if self.edit_panel and self.edit_panel.target == target:
             return
-        if self.edit_panel:
-            self.close_edit_panel()
+        self.close_edit_panel()
         self.edit_panel = EditPanel(self, target)
     
     def close_edit_panel(self, event=None):
+        '''Safely closes the edit panel, doing nothing if there
+           is not an edit panel currently visible.'''
+        if self.edit_panel is None:
+            return
         self.edit_panel.target.selected = False
         self.edit_panel.Destroy()
         self.edit_panel = None
@@ -228,45 +252,49 @@ class Canvas(wx.Panel):
         '''Callback when an edit panel is closed - pushes geometry
            state to the stack.'''
         self.push_stack()
-        self.Unbind(wx.EVT_WINDOW_DESTROY)
     
 ################################################################################
     
     def show_menu(self, event):
         menu = wx.Menu()
         
-        # Function generator to fix sneaky for-loop binding problem
-        def makefun(constructor):
+        # Function generator to fix sneaky for loop binding problem.
+        def function_wrapper(constructor):
             return lambda e: build_from(constructor)
         
+        # Constructor to create an object at the mouse position.
         def build_from(constructor):
             mx, my = wx.GetMousePosition()
             dx, dy = self.GetScreenPosition()
             scale = 100/self.scale
+            
             self.click = wx.Point(mx - dx, my - dy)
             self.mouse = wx.Point(mx - dx, my - dy)
             
             x, y = self.pixel_to_pos(mx - dx, my - dy)
-                        
             objs = constructor(x, y, scale)
             self.shape_set.add_shapes(objs)
             self.push_stack()
-            self.open_edit_panel(objs[0])
-            self.drag_target = objs[0]
-            objs[0].dragging = True
+            
+            self.open_edit_panel(objs[-1])
+            self.drag_target = objs[-1]
+            objs[-1].dragging = True
 
-        for T in self.shape_set.constructors:
+        constructors = koko.shapes.menu.constructors
+        for T in sorted(constructors):
             sub = wx.Menu()
-            for name, constructor in sorted(self.shape_set.constructors[T]):
+            for name, constructor in sorted(constructors[T]):
                 m = sub.Append(wx.ID_ANY, text=name)
-                self.Bind(wx.EVT_MENU, makefun(constructor), m)
+                self.Bind(wx.EVT_MENU, function_wrapper(constructor), m)
             menu.AppendMenu(wx.ID_ANY, T, sub)
         
         menu.AppendSeparator()
-                  
-        # Delete the hovered node
-        delete = menu.Append(wx.ID_ANY, text='Delete')
-        target = self.shape_set.get_target()
+        
+        # Get the a target node to delete
+        x, y = self.pixel_to_pos(*self.mouse)
+        r    = 10/self.scale
+        target = self.shape_set.get_target(x, y, r)
+        
         def del_shape(evt):
             if self.edit_panel and self.edit_panel.target == target:
                 self.close_edit_panel()
@@ -275,6 +303,7 @@ class Canvas(wx.Panel):
             self.push_stack()
             self.Refresh()
         
+        delete = menu.Append(wx.ID_ANY, text='Delete')
         if target is not None:
             self.Bind(wx.EVT_MENU, del_shape, delete)
         else:
@@ -356,6 +385,8 @@ class Canvas(wx.Panel):
                                        self.bitmap.view['ymax'])
         self.dc.DrawBitmap(self.bitmap, imgX, imgY)
         
+        # Draw x and y axes
+        self.draw_axes()
             
         # Draw the rest of the geometry
         self.shape_set.draw()
@@ -363,10 +394,19 @@ class Canvas(wx.Panel):
         # Draw border
         self.draw_border()
         
-        # Draw x and y axes
-        self.draw_axes()
-        
         self.dc = None
+        
+    
+    def SetPen(self, *args, **kwargs):
+        if type(args[0]) is wx.Pen:
+            self.dc.SetPen(args[0])
+        else:
+            self.dc.SetPen(wx.Pen(*args, **kwargs))
+    def SetBrush(self, *args, **kwargs):
+        if type(args[0]) is wx.Brush:
+            self.dc.SetBrush(args[0])
+        else:
+            self.dc.SetBrush(wx.Brush(*args, **kwargs))
         
 ################################################################################
 

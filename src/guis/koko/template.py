@@ -8,3 +8,17 @@ cad.ymax = 1
 cad.mm_per_unit = 25.4 # inch units
 
 cad.function = circle(0, 0, 0.5)'''
+
+PCB_TEMPLATE = '''from koko.lib.shapes import color, tan
+from koko.shapes.pcb import Component, Wire
+
+cad.mm_per_unit = 25.4 # inch units
+cad.type = 'RGB'
+
+traces = '0'
+for k in locals().keys():
+    c = eval(k)
+    if isinstance(c, Component) or isinstance(c, Wire):
+        traces += c
+cad.function = color(tan, traces)
+'''

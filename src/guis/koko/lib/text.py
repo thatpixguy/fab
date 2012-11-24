@@ -116,7 +116,7 @@ shape.width = 0.6
 _glyphs['D'] = shape
 
 
-shape = reflect_x(_glyphs['b'], _glyphs['b'].width)
+shape = reflect_x(_glyphs['b'], _glyphs['b'].width/2)
 shape.width = _glyphs['b'].width
 _glyphs['d'] = shape
 
@@ -355,7 +355,7 @@ _glyphs['r'] = shape
 shape = circle(0.275, 0.725, 0.275)
 shape -= circle(0.275, 0.725, 0.175)
 shape -= rectangle(0.275, 0.55, 0.45, 0.725)
-shape += reflect_x(reflect_y(shape, 1), .55)
+shape += reflect_x(reflect_y(shape, 0.5), .275)
 shape.width = 0.55
 _glyphs['S'] = shape
 
@@ -363,7 +363,7 @@ _glyphs['S'] = shape
 shape = circle(0.1625, 0.1625, 0.1625)
 shape -= scale_x(circle(0.165, 0.165, 0.0625), 0.165, 1.5)
 shape -= rectangle(0, 0.1625, 0.1625, 0.325)
-shape += reflect_x(reflect_y(shape, 0.55), 0.325)
+shape += reflect_x(reflect_y(shape, 0.275), 0.1625)
 shape = scale_x(shape, 0, 1.5)
 shape.width = 0.4875
 _glyphs['s'] = shape
@@ -400,14 +400,14 @@ _glyphs['u'] = shape
 
 shape = triangle(0, 1, 0.1, 1, 0.35, 0)
 shape += triangle(0.35, 0, 0.25, 0, 0, 1)
-shape += reflect_x(shape, 0.6)
+shape += reflect_x(shape, 0.3)
 shape.width = 0.6
 _glyphs['V'] = shape
 
 
 shape = triangle(0, 0.55, 0.1, 0.55, 0.35, 0)
 shape += triangle(0.35, 0, 0.25, 0, 0, 0.55)
-shape += reflect_x(shape, 0.6)
+shape += reflect_x(shape, 0.3)
 shape.width = 0.6
 _glyphs['v'] = shape
 
@@ -416,7 +416,7 @@ shape = triangle(0, 1, 0.1, 1, 0.25, 0)
 shape += triangle(0.25, 0, 0.15, 0, 0, 1)
 shape += triangle(0.15, 0, 0.35, 1, 0.45, 1)
 shape += triangle(0.45, 1, 0.25, 0, 0.15, 0)
-shape += reflect_x(shape, 0.8)
+shape += reflect_x(shape, 0.4)
 shape.width = 0.8
 _glyphs['W'] = shape
 
@@ -425,28 +425,28 @@ shape = triangle(0, 0.55, 0.1, 0.55, 0.25, 0)
 shape += triangle(0.25, 0, 0.15, 0, 0, 0.55)
 shape += triangle(0.15, 0, 0.35, 0.5, 0.45, 0.5)
 shape += triangle(0.45, 0.5, 0.25, 0, 0.15, 0)
-shape += reflect_x(shape, 0.8)
+shape += reflect_x(shape, 0.4)
 shape.width = 0.8
 _glyphs['w'] = shape
 
 
 shape = triangle(0, 1, 0.125, 1, 0.8, 0)
 shape += triangle(0.8, 0, 0.675, 0, 0, 1)
-shape += reflect_x(shape, 0.8)
+shape += reflect_x(shape, 0.4)
 shape.width = 0.8
 _glyphs['X'] = shape
 
 
 shape = triangle(0, 0.55, 0.125, 0.55, 0.55, 0)
 shape += triangle(0.55, 0, 0.425, 0, 0, 0.55)
-shape += reflect_x(shape, 0.55)
+shape += reflect_x(shape, 0.275)
 shape.width = 0.55
 _glyphs['x'] = shape
 
 
 shape = triangle(0, 1, 0.1, 1, 0.45, 0.5)
 shape += triangle(0.45, 0.5, 0.35, 0.5, 0, 1)
-shape += reflect_x(shape, 0.8)
+shape += reflect_x(shape, 0.4)
 shape += rectangle(0.35, 0.45, 0, 0.5)
 shape.width = 0.8
 _glyphs['Y'] = shape
@@ -454,7 +454,7 @@ _glyphs['Y'] = shape
 
 shape = triangle(0, 0.55, 0.1, 0.55, 0.325, 0)
 shape += triangle(0.325, 0, 0.225, 0, 0, 0.55)
-shape += reflect_x(shape, 0.55) + move(reflect_x(shape, 0.55), -0.225, -0.55)
+shape += reflect_x(shape, 0.275) + move(reflect_x(shape, 0.275), -0.225, -0.55)
 shape &= rectangle(0, 0.55, -0.375, 0.55)
 shape.width = 0.55
 _glyphs['y'] = shape
@@ -612,7 +612,7 @@ shape.width = 0.55
 _glyphs['8'] = shape
 
 
-shape = reflect_x(reflect_y(_glyphs['6'], 1), _glyphs['6'].width)
+shape = reflect_x(reflect_y(_glyphs['6'], 0.5), _glyphs['6'].width/2)
 shape.width = _glyphs['6'].width
 _glyphs['9'] = shape
 

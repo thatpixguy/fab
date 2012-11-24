@@ -49,6 +49,7 @@ typedef struct Region {
      *  the larger axes of the initial region.
      */
     std::list<Region> split(int count) const;
+    std::list<Region> split_xy(int count) const;
     
     /* std::list<Region> split(int isplit, int jsplit, int ksplit) const
      *

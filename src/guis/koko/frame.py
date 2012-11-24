@@ -1,11 +1,13 @@
 import wx
 import os
+import weakref
 
-import koko.about as about
+import koko.about
 from koko.canvas import Canvas
 from koko.editor import Editor
 from koko.themes import DARK_THEME
 
+import koko.globals
 
 class MainFrame(wx.Frame):
     def __init__(self, callbacks):
@@ -30,10 +32,12 @@ class MainFrame(wx.Frame):
         canvasSizer = wx.BoxSizer(wx.VERTICAL)
 
         version = wx.StaticText(canvasPanel, label='%s %s ' % 
-                                (about.NAME, about.VERSION))
+                                (koko.about.NAME, koko.about.VERSION))
         canvasSizer.Add(version, flag=wx.ALIGN_RIGHT)
         
         self.canvas = Canvas(canvasPanel, callbacks, size=(300, 300))
+        koko.globals.CANVAS = weakref.proxy(self.canvas)
+        
         canvasSizer.Add(self.canvas, proportion=2,
                         flag=wx.TOP | wx.LEFT | wx.RIGHT | wx.EXPAND,
                         border=20)
@@ -68,6 +72,8 @@ class MainFrame(wx.Frame):
         
         editorSizer.Add((0,0), border=15, flag=wx.TOP)
         self.editor = Editor(editorPanel, style=wx.NO_BORDER, size=(300, 400))
+        koko.globals.EDITOR = weakref.proxy(self.editor)
+        
         self.editor.load_template()
         self.editor.bind_callbacks(callbacks)
         
@@ -133,7 +139,8 @@ class MainFrame(wx.Frame):
         menu_bar = wx.MenuBar()
         
         file = wx.Menu()
-        attach(file, 'New', 'Ctrl+N', 'Start a new design file', wx.ID_NEW)
+        attach(file, 'New', 'Ctrl+N', 'Start a new script design', wx.ID_NEW)
+        attach(file, 'New PCB', '', 'Start a new pcb design')
         file.AppendSeparator()
 
         attach(file, 'Open', 'Ctrl+O', 'Open a design file', wx.ID_OPEN)

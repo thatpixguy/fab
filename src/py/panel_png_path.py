@@ -5,7 +5,7 @@
 # Neil Gershenfeld
 # CBA MIT 8/10/11
 #
-# (c) Massachusetts Institute of Technology 2011
+# (c) Massachusetts Institute of Technology 2012
 # Permission granted for experimental and personal use;
 # license for commercial sale available from MIT.
 #
@@ -53,10 +53,12 @@ class png_path_panel(wx.Panel):
          zstep = self.frame3_zstep.GetValue()
          if (self.frame3_xy.GetValue() | self.frame3_xz.GetValue() | self.frame3_yz.GetValue()):
             if ((parent.zmin != '') & (self.frame3_zbot.GetValue() == '')):
-               self.frame3_zbot.SetValue(str(parent.units*parent.zmin))
+               #self.frame3_zbot.SetValue(str(parent.units*parent.zmin))
+               self.frame3_zbot.SetValue(str(parent.units*(parent.zmin-parent.zmax)))
                self.frame3_ibot.SetValue('0')
             if ((parent.zmax != '') & (self.frame3_ztop.GetValue() == '')):
-               self.frame3_ztop.SetValue(str(parent.units*parent.zmax))
+               #self.frame3_ztop.SetValue(str(parent.units*parent.zmax))
+               self.frame3_ztop.SetValue('0')
                self.frame3_itop.SetValue('1')
             itop = self.frame3_itop.GetValue()
             ibot = self.frame3_ibot.GetValue()
@@ -121,10 +123,12 @@ class png_path_panel(wx.Panel):
       #
       def path3(event):
          if ((parent.zmin != '') & (self.frame3_zbot.GetValue() == '')):
-            self.frame3_zbot.SetValue(str(parent.units*parent.zmin))
+            #self.frame3_zbot.SetValue(str(parent.units*parent.zmin))
+            self.frame3_zbot.SetValue(str(parent.units*(parent.zmin-parent.zmax)))
             self.frame3_ibot.SetValue('0')
          if ((parent.zmax != '') & (self.frame3_ztop.GetValue() == '')):
-            self.frame3_ztop.SetValue(str(parent.units*parent.zmax))
+            #self.frame3_ztop.SetValue(str(parent.units*parent.zmax))
+            self.frame3_ztop.SetValue('0')
             self.frame3_itop.SetValue('1')
          self.frame3.Show()
       #

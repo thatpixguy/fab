@@ -10,84 +10,76 @@ import StringIO
 import sys
 import threading
 import traceback
+
 import wx
 
 BUNDLED = False
 
-def export_math(filename,
-                event=threading.Event(), frame=None):
+import koko.globals
+
+def export_math(filename, event=threading.Event()):
     '''Exports a .math file.
     
        Updates the UI in case of success.
     '''
-    export_xyz('math_math', filename,
-               event=event, frame=frame)
+    export_xyz('math_math', filename, event=event)
 
 ################################################################################
 
-def export_stl(filename, resolution=1,
-               event=threading.Event(), frame=None):
+def export_stl(filename, resolution=1, event=threading.Event()):
     '''Exports a .stl file.
     
        Updates the UI in case of success.
     '''
-    export_xyz('math_stl', filename,
-               resolution=resolution, event=event, frame=frame)
+    export_xyz('math_stl', filename, resolution=resolution, event=event)
 
 ################################################################################
 
-def export_png(filename, resolution=10,
-               event=threading.Event(), frame=None):
+def export_png(filename, resolution=10, event=threading.Event()):
     '''Exports a .png file.
     
        Updates the UI in case of success.
     '''
-    export_xyz('math_png', filename,
-               resolution=resolution, event=event, frame=frame)
+    export_xyz('math_png', filename, resolution=resolution, event=event)
 
 ################################################################################
 
-def export_svg(filename, resolution=10,
-               event=threading.Event(), frame=None):
+def export_svg(filename, resolution=10, event=threading.Event()):
     '''Exports a .svg file.
     
        Updates the UI in case of success.
     '''
-    export_xyz('math_svg', filename,
-               resolution=resolution, event=event, frame=frame)
+    export_xyz('math_svg', filename, resolution=resolution, event=event)
  
 ################################################################################
        
-def export_dot(filename, event=threading.Event(), frame=None):
+def export_dot(filename, event=threading.Event()):
     '''Exports a .dot file.
     
        Updates the UI in case of success.
     '''
-    export_xyz('math_dot', filename,
-               event=event, frame=frame)
+    export_xyz('math_dot', filename, event=event)
 
 ################################################################################
 
-def export_xyz(program, filename, resolution=None,
-               event=threading.Event, frame=None):
+def export_xyz(program, filename, resolution=None, event=threading.Event):
     '''Exports a generic file produced by math_xyz, where xyz is
        stl, png, svg, or dot.'''
     
     extension = program.replace('math_','.')
     output = "####    Exporting %s file     ####\n"  % extension
     
-    frame.canvas.border = None
-    del frame.editor.error_marker
+    koko.globals.CANVAS.border = None
+    del koko.globals.EDITOR.error_marker
     
-    frame.status = "Converting to math string (%s export)" % extension
+    koko.globals.FRAME.status = "Converting to math string (%s export)" % extension
     
     # Save math file with custom filename for .math export
     if extension == '.math':
         success, output, math = cad_math(filename=filename,
-                                         output=output, event=event, frame=frame)
+                                         output=output, event=event)
     else: # otherwise use default filename
-        success, output, math = cad_math(output=output,
-                                         event=event, frame=frame)
+        success, output, math = cad_math(output=output, event=event)
     
     # Check return code from cad_math
     if success is None:
@@ -99,18 +91,18 @@ def export_xyz(program, filename, resolution=None,
     # Run math_xyz
     if extension != '.math':
         success, output = math_xyz(program, filename, resolution=resolution,
-                                   event=event, frame=frame, output=output)
+                                   event=event, output=output)
                   
     if success is True:
-        frame.canvas.border = None
-        frame.status = "%s export complete" % extension
+        koko.globals.CANVAS.border = None
+        koko.globals.FRAME.status = "%s export complete" % extension
     
     if success is not None:
-        frame.output = output
+        koko.globals.OUTPUT = output
 
 ################################################################################
 
-def render(queue=None, math=None, event=threading.Event(), frame=None):
+def render(queue=None, math=None, event=threading.Event()):
     ''' Renders an image and loads it in the display panel.
     
         This function should be called in an independent thread.
@@ -120,20 +112,18 @@ def render(queue=None, math=None, event=threading.Event(), frame=None):
         provided math file.
     '''
     start_time = datetime.now()
-    
-    del frame.editor.error_marker
+    del koko.globals.EDITOR.error_marker
     
     output = "####       Rendering image      ####\n"
-    frame.canvas.border = None
+    koko.globals.CANVAS.border = None
     
     # If we were not provided with a math file, then recalculate it.
     if math is None:
-        frame.status = "Converting to math string"
+        koko.globals.FRAME.status = "Converting to math string"
     
         # Create math file with default filename
         now = datetime.now()
-        success, output, math = cad_math(output=output,
-                                         event=event, frame=frame)
+        success, output, math = cad_math(output=output, event=event)
         dT = datetime.now() - now
         output += "#   cad_math time: %f s\n\n" % (dT.seconds +
                                                    dT.microseconds / 1.0e6)
@@ -142,7 +132,7 @@ def render(queue=None, math=None, event=threading.Event(), frame=None):
         queue.put(math)
         
         if success is False:
-            frame.output = output
+            koko.globals.FRAME.output = output
         if not success:
             return
 
@@ -159,7 +149,7 @@ def render(queue=None, math=None, event=threading.Event(), frame=None):
     if event.is_set(): return
 
     # Figure out the current view
-    view = frame.canvas.view.copy()
+    view = koko.globals.CANVAS.view.copy()
     output = rewrite_math(math, view, output)
 
     if event.is_set(): return
@@ -168,33 +158,33 @@ def render(queue=None, math=None, event=threading.Event(), frame=None):
     resolution  = view['pixels/unit'] / math['mm/unit']
 
     # Call math_png.  If it fails, then return early.
-    frame.status = "Parsing math string"
+    koko.globals.FRAME.status = "Parsing math string"
     
     if event.is_set(): return
     
     now = datetime.now()
     success, output = math_png(resolution=resolution, output=output,
-                               event=event, frame=frame)
+                               event=event)
     dT = datetime.now() - now
     output += "#   math_png time: %f s\n\n#\n" % (dT.seconds +
                                              dT.microseconds / 1.0e6)
 
     if success is False:
-        frame.output = output
+        koko.globals.FRAME.output = output
     if not success:
         return
         
-    frame.canvas.border = None
-    frame.status = ''
+    koko.globals.CANVAS.border = None
+    koko.globals.FRAME.status = ''
     
     if event.is_set(): return
     
-    wx.CallAfter(lambda: frame.canvas.load_image('_cad_ui_tmp.png', view))
+    wx.CallAfter(lambda: koko.globals.CANVAS.load_image('_cad_ui_tmp.png', view))
     
     dT = datetime.now() - start_time
     output += "# #    Total time: %f s\n#" % (dT.seconds +
                                                    dT.microseconds / 1.0e6)
-    frame.output = output
+    koko.globals.FRAME.output = output
 
 
 
@@ -280,12 +270,12 @@ class cad_variables(object):
     # cad variables
     #
     def __init__(self):
-        self.xmin = 0 # minimum x value to render
-        self.xmax = 0 # maximum x value to render
-        self.ymin = 0 # minimum y value to render
-        self.ymax = 0 # maximum y value to render
-        self.zmin = 0 # minimum z value to render
-        self.zmax = 0 # maximum z value to render
+        self.xmin = -1 # minimum x value to render
+        self.xmax =  1 # maximum x value to render
+        self.ymin = -1 # minimum y value to render
+        self.ymax =  1 # maximum y value to render
+        self.zmin =  0 # minimum z value to render
+        self.zmax =  0 # maximum z value to render
         self.function = '' # cad function
         self.mm_per_unit = 1.0 # file units
         self.type = 'Boolean' # math string type
@@ -334,8 +324,7 @@ class cad_variables(object):
     
 ################################################################################
 
-def cad_math(filename=None, output='',
-             event=threading.Event(), frame=None):
+def cad_math(filename=None, output='', event=threading.Event()):
     ''' Converts a cad file into a math file.  This should happen in a
         separate thread.
     
@@ -350,7 +339,7 @@ def cad_math(filename=None, output='',
 
     vars = {}
     exec('from string import *; from math import *', vars)
-    vars.update(frame.canvas.shape_set.dict)
+    vars.update(koko.globals.SHAPES.dict)
     vars['cad'] = cad_variables()
     
     output += '>>  Compiling to math file\n'
@@ -360,10 +349,10 @@ def cad_math(filename=None, output='',
     sys.stdout = buffer
 
     try:
-        exec(frame.editor.text.replace('koko.lib','lib'), vars)
+        exec(koko.globals.EDITOR.text.replace('koko.lib','lib'), vars)
     except:
         sys.stdout = sys.__stdout__
-        frame.canvas.border = (255, 0, 0)
+        koko.globals.CANVAS.border = (255, 0, 0)
         
         errors = traceback.format_exc()
         errors = errors[0] + ''.join(errors[3:])
@@ -380,10 +369,10 @@ def cad_math(filename=None, output='',
         
         # Update the status line
         try:
-            frame.editor.error_marker = error_line - 1
-            frame.status = "cad_math failed (line %i)" % error_line
+            koko.globals.EDITOR.error_marker = error_line - 1
+            koko.globals.FRAME.status = "cad_math failed (line %i)" % error_line
         except NameError:
-            frame.status = "cad_math failed"
+            koko.globals.FRAME.status = "cad_math failed"
 
         return (False, output, math)
 
@@ -448,8 +437,8 @@ def math_xyz(program, filename, resolution=None, monitor=None,
 
     if not success:
         output += errors
-        frame.canvas.border = (255, 0, 0)
-        frame.status = "%s failed" % program
+        koko.globals.CANVAS.border = (255, 0, 0)
+        koko.globals.FRAME.status = "%s failed" % program
         return (False, output)
     
     # If everything worked, then we delete the temporary file
@@ -531,9 +520,9 @@ def progress_bar(process, output='', event=threading.Event(), frame=None):
                 line = line[4:]
                 percent = (line.count('|') * 100) / (len(line) - 2)
                 if percent < 100:
-                    frame.status = "Rendering (%i%%)" % percent
+                    koko.globals.FRAME.status = "Rendering (%i%%)" % percent
                 else:
-                    frame.status = "Writing output file"
+                    koko.globals.FRAME.status = "Writing output file"
             else:
                 output += line+'\n'
             line = ''
@@ -560,10 +549,10 @@ def run_fab(filename='', event=threading.Event(), frame=None,
     if success is None:
         return
     elif success is False:
-        frame.output = output
+        koko.globals.FRAME.output = output
         return
     
-    frame.output = output
+    koko.globals.FRAME.output = output
     fab = subprocess.Popen(['fab',filename])
     fab.filename = filename
     

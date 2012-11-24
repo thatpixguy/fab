@@ -8,11 +8,7 @@
 
 class MathString(object):
     def __init__(self, string='0'):
-        self.__math = str(string)
-    
-    @property
-    def _math(self):
-        return self.__math
+        self._math = str(string)
     
     def __repr__(self):
         return 'MathString(%s)' % self

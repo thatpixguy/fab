@@ -11,7 +11,11 @@ Permission granted for experimental and personal use;
 license for commercial sale available from MIT.
 
 todo
-   view limits graph redraw
+   file save to side pane
+   file open to side pane
+   file exports
+   cube edges
+   rounded cube
    arrow keys on menus
    constrained moves
    align node groups
@@ -30,7 +34,6 @@ todo
    help
    .math view rotation
    xmlhttp name fields
-   undo
    .path view
    hierarchichal graph view toggle
 
@@ -61,17 +64,21 @@ todo
       opacity="1"
       display="none" xlink:href="">
 </svg>
+<div id="edit_panel">
+</div>
 <script type="text/javascript">
-   date = "alpha 9/26/12"
+   date = "alpha 10/25/12"
    svgNS = "http://www.w3.org/2000/svg"
    xlinkNS="http://www.w3.org/1999/xlink"
    window_width = window.innerWidth
    window_height = window.innerHeight
-   menu_width = 110
-   menu_height = 20
+   menu_font_size = window_height/70
+   menu_width = 7.5*menu_font_size
+   menu_height = 1.82*menu_font_size
+   node_font_size = 1.1*menu_font_size
+   text_font_size = 1.25*menu_font_size
+   text_height = 1.8*text_font_size
    button_color = "rgb(200,200,200)"
-   font_size = 13
-   node_font_size = 12
    frame_border = 10 // border from browser frame
    panel_height = (window_height-2*menu_height-frame_border)/2.0
    panel_size = panel_height
@@ -130,8 +137,14 @@ todo
    pending_nodes = [] // nodes list for walking graph
    string_digits = 8
    display_digits = 3
-   resolution = 500
+   resolution = 250
    file_name = ""
+   edit_panel = document.getElementById("edit_panel")
+   xpos = 2*frame_border+2*panel_size
+   ypos = 2*frame_border+2*menu_height
+   edit_panel.setAttribute("style","position:absolute;left:"+xpos+"px;top:"+ypos+"px;")
+   edit_panel_div = document.createElement("div")
+   edit_panel.appendChild(edit_panel_div)
 
    function graph_class() {
       //
@@ -139,9 +152,11 @@ todo
       //
       this.units = 1
       this.grid = 0
-      this.mode = "Boolean"
+      this.mode = "Real"
       this.expression = ""
       this.nodes = []
+      this.current_undo_string = ""
+      this.last_undo_string = ""
       //
       // functions
       //
@@ -304,6 +319,8 @@ todo
          // render graph
          //
          this.evaluate()
+         graph.last_undo_string = graph.current_undo_string
+         graph.current_undo_string = graph.to_string()
          pixels_per_mm = resolution / (view_dx * graph.units)
          if (this.expression.indexOf("undefined") == -1) {
             if (view_dz == 0)
@@ -811,7 +828,7 @@ todo
             if ((graph.nodes[n].output['part#'] != undefined) &
                (graph.nodes[n].to.length == 0))
                expr = 'min('+expr+','+graph.nodes[n].output['part#']+')'
-         expr = '(('+expr+') <= 0)'
+         expr = '('+expr+')'
          this.expression = expr
          return expr
          }
@@ -1665,32 +1682,119 @@ node.out(#).z = node.z + node.out(#).z - node.last.z;\n",
       //
       // click to edit node
       //
-      win = open('','fab')
-      win.document.write('\
-         <form>\
-         edit node<br>\
-         <input type="button" value="submit" onClick="opener.node_form(node_index.value,node_name.value,node_x.value,node_y.value,node_z.value,node_offset.value,node_code.value)"> (or enter)<br>\
-         index: <input type="text" name="node_index" value="'+node.index+'" onkeydown="if (event.keyCode == 13) opener.node_form(node_index.value,node_name.value,node_x.value,node_y.value,node_z.value,node_offset.value,node_code.value)"><br>\
-         name: <input type="text" name="node_name" value="'+node.name+'" onkeydown="if (event.keyCode == 13) opener.node_form(node_index.value,node_name.value,node_x.value,node_y.value,node_z.value,node_offset.value,node_code.value)"><br>\
-         label offset: <input type="text" name="node_offset" value="'+node.offset+'" onkeydown="if (event.keyCode == 13) opener.node_form(node_index.value,node_name.value,node_x.value,node_y.value,node_z.value,node_offset.value,node_code.value)"><br>\
-         x: <input type="text" name="node_x" value="'+parseFloat((node.x).toFixed(string_digits))+'" onkeydown="if (event.keyCode == 13) opener.node_form(node_index.value,node_name.value,node_x.value,node_y.value,node_z.value,node_offset.value,node_code.value)"> (can evaluate expression for coordinates)<br>\
-         y: <input type="text" name="node_y" value="'+parseFloat((node.y).toFixed(string_digits))+'" onkeydown="if (event.keyCode == 13) opener.node_form(node_index.value,node_name.value,node_x.value,node_y.value,node_z.value,node_offset.value,node_code.value)"><br>\
-         z: <input type="text" name="node_z" value="'+parseFloat((node.z).toFixed(string_digits))+'" onkeydown="if (event.keyCode == 13) opener.node_form(node_index.value,node_name.value,node_x.value,node_y.value,node_z.value,node_offset.value,node_code.value)"><br>\
-         code:<br>\
-         <textarea name="node_code" rows="25" cols="80" autofocus="autofocus">'+node.code+'</textarea><br>\
-         </form>\
-         from: '+JSON.stringify(node.from)+'<br>\
-         in: '+JSON.stringify(node.input)+'<br>\
-         to: '+JSON.stringify(node.to)+'<br>\
-         out: '+JSON.stringify(node.output)+'<br>\
-         ')
-      win.document.close()
+      edit_panel_div = document.getElementById("edit_panel_div")
+      if (edit_panel_div != null)
+         edit_panel.removeChild(edit_panel_div)
+      edit_panel_div = document.createElement("div")
+         edit_panel_div.setAttribute("id","edit_panel_div")
+      element = document.createElement("input")
+         element.setAttribute("type","button")
+         element.setAttribute("value","submit")
+         element.setAttribute("onClick","node_form(node_index_input.value,node_name_input.value,node_x_input.value,node_y_input.value,node_z_input.value,node_offset_input.value,node_code_input.value)")
+         edit_panel_div.appendChild(element)
+      element = document.createElement("input")
+         element.setAttribute("type","button")
+         element.setAttribute("value","update form")
+         element.setAttribute("onClick","{edit_node(last_node_edited)}")
+         edit_panel_div.appendChild(element)
+      element = document.createElement("input")
+         element.setAttribute("type","button")
+         element.setAttribute("value","close")
+         element.setAttribute("onClick","edit_panel.removeChild(edit_panel_div)")
+         edit_panel_div.appendChild(element)
+      element = document.createElement("br")
+         edit_panel_div.appendChild(element)
+      element = document.createTextNode("index: ")
+         last_node_edited = node
+         edit_panel_div.appendChild(element)
+         element = document.createElement("input")
+            element.setAttribute("type","text")
+            element.setAttribute("value",node.index)
+            element.setAttribute("id","node_index_input")
+            edit_panel_div.appendChild(element)
+         element = document.createElement("br")
+            edit_panel_div.appendChild(element)
+      element = document.createTextNode("name: ")
+         edit_panel_div.appendChild(element)
+         element = document.createElement("input")
+            element.setAttribute("type","text")
+            element.setAttribute("value",node.name)
+            element.setAttribute("id","node_name_input")
+            edit_panel_div.appendChild(element)
+         element = document.createElement("br")
+            edit_panel_div.appendChild(element)
+      element = document.createTextNode("label_offset: ")
+         edit_panel_div.appendChild(element)
+         element = document.createElement("input")
+            element.setAttribute("type","text")
+            element.setAttribute("value",node.offset)
+            element.setAttribute("id","node_offset_input")
+            edit_panel_div.appendChild(element)
+         element = document.createElement("br")
+            edit_panel_div.appendChild(element)
+      element = document.createTextNode("x: ")
+         edit_panel_div.appendChild(element)
+         element = document.createElement("input")
+            element.setAttribute("type","text")
+            element.setAttribute("value",parseFloat((node.x).toFixed(string_digits)))
+            element.setAttribute("id","node_x_input")
+            edit_panel_div.appendChild(element)
+         element = document.createElement("br")
+            edit_panel_div.appendChild(element)
+      element = document.createTextNode("y: ")
+         edit_panel_div.appendChild(element)
+         element = document.createElement("input")
+            element.setAttribute("type","text")
+            element.setAttribute("value",parseFloat((node.y).toFixed(string_digits)))
+            element.setAttribute("id","node_y_input")
+            edit_panel_div.appendChild(element)
+         element = document.createElement("br")
+            edit_panel_div.appendChild(element)
+      element = document.createTextNode("z: ")
+         edit_panel_div.appendChild(element)
+         element = document.createElement("input")
+            element.setAttribute("type","text")
+            element.setAttribute("value",parseFloat((node.z).toFixed(string_digits)))
+            element.setAttribute("id","node_z_input")
+            edit_panel_div.appendChild(element)
+         element = document.createElement("br")
+            edit_panel_div.appendChild(element)
+      element = document.createTextNode("code: ")
+         edit_panel_div.appendChild(element)
+         element = document.createElement("br")
+            edit_panel_div.appendChild(element)
+         element = document.createElement("textarea")
+            element.setAttribute("rows","15")
+            element.setAttribute("cols","60")
+            element.setAttribute("autofocus","autofocus")
+            element.setAttribute("id","node_code_input")
+            text_element = document.createTextNode(node.code)
+               element.appendChild(text_element)
+            edit_panel_div.appendChild(element)
+         element = document.createElement("br")
+            edit_panel_div.appendChild(element)
+      element = document.createTextNode("from: "+JSON.stringify(node.from))
+         edit_panel_div.appendChild(element)
+         element = document.createElement("br")
+            edit_panel_div.appendChild(element)
+      element = document.createTextNode("in: "+JSON.stringify(node.input))
+         edit_panel_div.appendChild(element)
+         element = document.createElement("br")
+            edit_panel_div.appendChild(element)
+      element = document.createTextNode("to: "+JSON.stringify(node.to))
+         edit_panel_div.appendChild(element)
+         element = document.createElement("br")
+            edit_panel_div.appendChild(element)
+      element = document.createTextNode("out: "+JSON.stringify(node.output))
+         edit_panel_div.appendChild(element)
+         element = document.createElement("br")
+            edit_panel_div.appendChild(element)
+      edit_panel.appendChild(edit_panel_div)
       }
    function node_form(index,name,x,y,z,offset,code) {
       //
       // node form handler
       //
-      win.close()
       var node = graph.nodes[Number(index)]
       node.name = name
       node.code = code
@@ -1711,8 +1815,78 @@ node.out(#).z = node.z + node.out(#).z - node.last.z;\n",
       node.xyz_node.setAttribute("fill",node_color)
       node.xyz_text.setAttribute("fill",text_color)
       }
+   function get_view() {
+      //
+      // form to get view limits 
+      //
+      edit_panel_div = document.getElementById("edit_panel_div")
+      if (edit_panel_div != null)
+         edit_panel.removeChild(edit_panel_div)
+      edit_panel_div = document.createElement("div")
+         edit_panel_div.setAttribute("id","edit_panel_div")
+      element = document.createElement("input")
+         element.setAttribute("type","button")
+         element.setAttribute("value","submit")
+         element.setAttribute("onClick","view_form(view_xmin_input.value,view_ymin_input.value,view_zmin_input.value,view_dxyz_input.value)")
+         edit_panel_div.appendChild(element)
+      element = document.createElement("input")
+         element.setAttribute("type","button")
+         element.setAttribute("value","update form")
+         element.setAttribute("onClick","{get_view()}")
+         edit_panel_div.appendChild(element)
+      element = document.createElement("input")
+         element.setAttribute("type","button")
+         element.setAttribute("value","close")
+         element.setAttribute("onClick","edit_panel.removeChild(edit_panel_div)")
+         edit_panel_div.appendChild(element)
+      element = document.createElement("br")
+         edit_panel_div.appendChild(element)
+      element = document.createTextNode("view: ")
+         edit_panel_div.appendChild(element)
+         element = document.createElement("br")
+            edit_panel_div.appendChild(element)
+      element = document.createTextNode("xmin: ")
+         edit_panel_div.appendChild(element)
+         element = document.createElement("input")
+            element.setAttribute("type","text")
+            element.setAttribute("value",view_xmin)
+            element.setAttribute("id","view_xmin_input")
+            edit_panel_div.appendChild(element)
+         element = document.createElement("br")
+            edit_panel_div.appendChild(element)
+      element = document.createTextNode("ymin: ")
+         edit_panel_div.appendChild(element)
+         element = document.createElement("input")
+            element.setAttribute("type","text")
+            element.setAttribute("value",view_ymin)
+            element.setAttribute("id","view_ymin_input")
+            edit_panel_div.appendChild(element)
+         element = document.createElement("br")
+            edit_panel_div.appendChild(element)
+      element = document.createTextNode("zmin: ")
+         edit_panel_div.appendChild(element)
+         element = document.createElement("input")
+            element.setAttribute("type","text")
+            element.setAttribute("value",view_zmin)
+            element.setAttribute("id","view_zmin_input")
+            edit_panel_div.appendChild(element)
+         element = document.createElement("br")
+            edit_panel_div.appendChild(element)
+      element = document.createTextNode("width: ")
+         edit_panel_div.appendChild(element)
+         element = document.createElement("input")
+            element.setAttribute("type","text")
+            element.setAttribute("value",view_dx)
+            element.setAttribute("id","view_dxyz_input")
+            edit_panel_div.appendChild(element)
+         element = document.createElement("br")
+            edit_panel_div.appendChild(element)
+      edit_panel.appendChild(edit_panel_div)
+      }
    function view_form(xmin,ymin,zmin,dxyz) {
-      win.close()
+      //
+      // view form handler
+      //
       view_xmin = parseFloat(xmin)
       view_ymin = parseFloat(ymin)
       view_zmin = parseFloat(zmin)
@@ -1721,6 +1895,7 @@ node.out(#).z = node.z + node.out(#).z - node.last.z;\n",
       if (view_dz != 0)
          view_dz = parseFloat(dxyz)
       redraw_axes()
+      graph.redraw()
       graph.render()
       }
    function update_text(node) {
@@ -1741,61 +1916,70 @@ node.out(#).z = node.z + node.out(#).z - node.last.z;\n",
          node.xyz_text.childNodes[0])
       }
    function get_grid() {
-      //
-      // form to get grid
-      //
-      win = open('','fab')
-      win.document.write('\
-         <form>\
-         <input type="button" value="submit" onClick="opener.grid_handler(grid.value)"> (or enter)<br>\
-         grid size: <input type="text" name="grid" value="'+graph.grid+'" autofocus="autofocus" onkeydown="if (event.keyCode == 13) opener.grid_handler(grid.value)"> (world units; 0 to remove grid)<br>\
-         ')
-      win.document.close()
-      }
-   function grid_handler(grid) {
-      //
-      // grid form handler
-      //
-      win.close()
-      graph.grid = grid 
+      edit_panel_div = document.getElementById("edit_panel_div")
+      if (edit_panel_div != null)
+         edit_panel.removeChild(edit_panel_div)
+      edit_panel_div = document.createElement("div")
+         edit_panel_div.setAttribute("id","edit_panel_div")
+      element = document.createTextNode("grid size (world units): ")
+         edit_panel_div.appendChild(element)
+         element = document.createElement("input")
+            element.setAttribute("type","text")
+            element.setAttribute("size","4")
+            element.setAttribute("value",graph.grid)
+            element.setAttribute("id","grid_input")
+            element.setAttribute("onkeydown","if (event.keyCode == 13) {graph.grid = grid_input.value; msg('grid set to '+graph.grid); edit_panel.removeChild(edit_panel_div)}")
+            element.setAttribute("autofocus","autofocus")
+            edit_panel_div.appendChild(element)
+         element = document.createTextNode(" (enter to submit)")
+            edit_panel_div.appendChild(element)
+      edit_panel.appendChild(edit_panel_div)
       }
    function get_units() {
       //
       // form to get units
       //
-      win = open('','fab')
-      win.document.write('\
-         <form>\
-         <input type="button" value="submit" onClick="opener.units_handler(units.value)"> (or enter)<br>\
-         mm per world unit: <input type="text" name="units" value="'+graph.units+'" autofocus="autofocus" onkeydown="if (event.keyCode == 13) opener.units_handler(units.value)"><br>\
-         ')
-      win.document.close()
-      }
-   function units_handler(units) {
-      //
-      // units form handler
-      //
-      win.close()
-      graph.units = units
+      edit_panel_div = document.getElementById("edit_panel_div")
+      if (edit_panel_div != null)
+         edit_panel.removeChild(edit_panel_div)
+      edit_panel_div = document.createElement("div")
+         edit_panel_div.setAttribute("id","edit_panel_div")
+      element = document.createTextNode("mm per world unit: ")
+         edit_panel_div.appendChild(element)
+         element = document.createElement("input")
+            element.setAttribute("type","text")
+            element.setAttribute("size","4")
+            element.setAttribute("value",graph.units)
+            element.setAttribute("id","units_input")
+            element.setAttribute("onkeydown","if (event.keyCode == 13) {graph.units = units_input.value; msg('units set to '+graph.units); edit_panel.removeChild(edit_panel_div)}")
+            element.setAttribute("autofocus","autofocus")
+            edit_panel_div.appendChild(element)
+         element = document.createTextNode(" (enter to submit)")
+            edit_panel_div.appendChild(element)
+      edit_panel.appendChild(edit_panel_div)
       }
    function get_resolution() {
       //
       // form to get resolution
       //
-      win = open('','fab')
-      win.document.write('\
-         <form>\
-         <input type="button" value="submit" onClick="opener.grid_handler(grid.value)"> (or enter)<br>\
-         render resolution: <input type="text" name="resolution" value="'+resolution+'" autofocus="autofocus" onkeydown="if (event.keyCode == 13) opener.resolution_handler(resolution.value)"> (pixels)<br>\
-         ')
-      win.document.close()
-      }
-   function resolution_handler(value) {
-      //
-      // resolution form handler
-      //
-      win.close()
-      resolution = value
+      edit_panel_div = document.getElementById("edit_panel_div")
+      if (edit_panel_div != null)
+         edit_panel.removeChild(edit_panel_div)
+      edit_panel_div = document.createElement("div")
+         edit_panel_div.setAttribute("id","edit_panel_div")
+      element = document.createTextNode("render resolution (pixels): ")
+         edit_panel_div.appendChild(element)
+         element = document.createElement("input")
+            element.setAttribute("type","text")
+            element.setAttribute("size","4")
+            element.setAttribute("value",resolution)
+            element.setAttribute("id","resolution_input")
+            element.setAttribute("onkeydown","if (event.keyCode == 13) {resolution = resolution_input.value; msg('resolution set to '+resolution); edit_panel.removeChild(edit_panel_div)}")
+            element.setAttribute("autofocus","autofocus")
+            edit_panel_div.appendChild(element)
+         element = document.createTextNode(" (enter to submit)")
+            edit_panel_div.appendChild(element)
+      edit_panel.appendChild(edit_panel_div)
       }
    function rotate3d() {
       //
@@ -1867,7 +2051,7 @@ node.out(#).z = node.z + node.out(#).z - node.last.z;\n",
 	      //
 	      menu_names = new Array
          for (i = 0; i < names.length; ++i) {
-            button(x,y+i*height,width,height,names[i],'action(evt)')
+            button(x,y+.985*i*height,width,height,names[i],'action(evt)')
 	         menu_names.push("menu_"+names[i])
             }
          }
@@ -1897,7 +2081,7 @@ node.out(#).z = node.z + node.out(#).z - node.last.z;\n",
       var new_txt = document.createElementNS(svgNS,"text");
          new_txt.setAttribute("x",width/2)
          new_txt.setAttribute("y",height/2+5)
-         new_txt.setAttribute("font-size",font_size);
+         new_txt.setAttribute("font-size",menu_font_size);
          new_txt.setAttribute("font-family","sans-serif");
          new_txt.setAttribute("text-anchor","middle");
          //new_txt.setAttribute("fill","rgb(200,0,0)")
@@ -1929,7 +2113,7 @@ node.out(#).z = node.z + node.out(#).z - node.last.z;\n",
       //
       // shapes menu
       //
-      names = ["node","true","(t)riangle","right trian(g)le","(r)ect. edge","r(e)ct. center","rect. cor(n)ers","po(l)ygon","(c)irc. edge","c(i)rc. center","circ. diam.","elli(p)se","c(u)be edge","cu(b)e center","cube corners","pyrami(d)","(s)phere edge","sp(h)ere center","sphere diam.","cylinder (x)","cylinder (y)","cylinder (z)","c(o)ne","torus","function"]
+      names = ["node","true","(t)riangle","right trian(g)le","(r)ect. edge","r(e)ct. center","rect. cor(n)ers","rounded rect.","po(l)ygon","(c)irc. edge","c(i)rc. center","circ. diam.","elli(p)se","c(u)be edge","cu(b)e center","cube corners","pyrami(d)","(s)phere edge","sp(h)ere center","sphere diam.","cylinder (x)","cylinder (y)","cylinder (z)","c(o)ne","torus","function"]
       menu(0*menu_width,2*menu_height,menu_width,menu_height,names)
       }
    function operators_menu(evt) {
@@ -1950,7 +2134,7 @@ node.out(#).z = node.z + node.out(#).z - node.last.z;\n",
       //
       // edit menu
       //
-      names = ["(l)ink","(f)ixed link","(insert node)","(u)nlink node","(d)elete node","(c)ut nodes","(copy nodes)","(paste nodes)","(m)ove nodes","(undo)","(redo)","align (x)","align (y)","align (z)","align xy (2)","align xyz (3)","(g)rid size"]
+      names = ["(n)ode","(l)ink","(f)ixed link","(insert node)","unlink node","(d)elete node","(c)ut nodes","(copy nodes)","(paste nodes)","(m)ove nodes","(u)ndo","(redo)","align (x)","align (y)","align (z)","align xy (2)","align xyz (3)","(g)rid size"]
       ,
       menu(3*menu_width,2*menu_height,menu_width,menu_height,names)
       }
@@ -2102,7 +2286,7 @@ node.output['part#'] = '(-1)';"
          }
       else if (label == 'menu_(r)ect. edge') {
          //
-         // origin
+         // corner
          //
          name = "corner"
          x = -node_offset
@@ -2114,7 +2298,7 @@ node.out(0).y = node.y + node.out(0).y - node.last.y;\n\
 node.out(0).z = node.z + node.out(0).z - node.last.z;"
          corner = graph.add_node(name,x,y,z,1,code)
          //
-         // corner 
+         // origin
          //
          name = "rectangle"
          x = 0
@@ -2253,6 +2437,82 @@ if (x1 != undefined) {\n\
          graph.link(point1_node.index,point2_node.index,"","")
          graph.update(point1_node.index)
          selected_node = point1_node.index
+         message = "node location?"
+         }
+      else if (label == 'menu_rounded rect.') {
+         //
+         // corner 
+         //
+         name = "corner"
+         x = -1.5*node_offset
+         y = -1.5*node_offset
+         z = 0
+         code = "\
+node.out(0).x = node.x + node.out(0).x - node.last.x;\n\
+node.out(0).y = node.y + node.out(0).y - node.last.y;\n\
+node.out(0).z = node.z + node.out(0).z - node.last.z;"
+         corner_node = graph.add_node(name,x,y,z,1,code)
+         //
+         // radius 
+         //
+         name = "radius"
+         x = -node_offset
+         y = -node_offset
+         z = 0
+         code = "\
+node.y = node.in(0).y + node.x - node.in(0).x;\n\
+node.out(0).x = node.x + node.out(0).x - node.last.x;\n\
+node.out(0).y = node.y + node.out(0).y - node.last.y;\n\
+node.out(0).z = node.z + node.out(0).z - node.last.z;\n\
+node.output['x1'] = node.in(0).x;\n\
+node.output['y1'] = node.in(0).y;"
+         radius_node = graph.add_node(name,x,y,z,1,code)
+         //
+         // corner 
+         //
+         name = "rectangle"
+         x = 0
+         y = 0
+         z = 0 
+         code = "\
+x1 = node.input['x1'];\n\
+y1 = node.input['y1'];\n\
+x2 = node.in(0).x\n\
+y2 = node.in(0).y\n\
+x3 = node.x\n\
+y3 = node.y\n\
+if (x1 != undefined) {\n\
+   part = '(('+number(x1)+')-X)';\n\
+   part1 = '(X-('+number(x3)+'))';\n\
+   part = 'max('+part+','+part1+')';\n\
+   part1 = '(('+number(y2)+')-Y)';\n\
+   part = 'max('+part+','+part1+')';\n\
+   part1 = '(Y-('+number(y3-(y2-y1))+'))';\n\
+   part = 'max('+part+','+part1+')';\n\
+   part1 = '(('+number(x2)+')-X)';\n\
+   part2 = '(X-('+number(x3-(x2-x1))+'))';\n\
+   part1 = 'max('+part1+','+part2+')';\n\
+   part2 = '(('+number(y1)+')-Y)';\n\
+   part1 = 'max('+part1+','+part2+')';\n\
+   part2 = '(Y-('+number(y3)+'))';\n\
+   part1 = 'max('+part1+','+part2+')';\n\
+   part = 'min('+part+','+part1+')';\n\
+   r = x2-x1;\n\
+   part1 = '(((X-'+number(x2)+')*(X-'+number(x2)+')+(Y-'+number(y2)+')*(Y-'+number(y2)+')) - '+number(r)+'*'+number(r)+')';\n\
+   part = 'min('+part+','+part1+')';\n\
+   part1 = '(((X-'+number(x2)+')*(X-'+number(x2)+')+(Y-'+number(y3-(y2-y1))+')*(Y-'+number(y3-(y2-y1))+')) - '+number(r)+'*'+number(r)+')';\n\
+   part = 'min('+part+','+part1+')';\n\
+   part1 = '(((X-'+number(x3-(x2-x1))+')*(X-'+number(x3-(x2-x1))+')+(Y-'+number(y2)+')*(Y-'+number(y2)+')) - '+number(r)+'*'+number(r)+')';\n\
+   part = 'min('+part+','+part1+')';\n\
+   part1 = '(((X-'+number(x3-(x2-x1))+')*(X-'+number(x3-(x2-x1))+')+(Y-'+number(y3-(y2-y1))+')*(Y-'+number(y3-(y2-y1))+')) - '+number(r)+'*'+number(r)+')';\n\
+   part = 'min('+part+','+part1+')';\n\
+   node.output['part#'] = part;\n\
+   }"
+         rectangle_node = graph.add_node(name,x,y,z,1,code)
+         graph.link(radius_node.index,rectangle_node.index,"","")
+         graph.link(corner_node.index,radius_node.index,"","")
+         graph.update(corner_node.index)
+         selected_node = corner_node.index
          message = "node location?"
          }
       else if (label == 'menu_(c)irc. edge') {
@@ -5009,6 +5269,9 @@ if (part != undefined) {\n\
       //
       // edit
       //
+      else if (label == 'menu_(n)ode') {
+         msg("click node to edit")
+         }
       else if (label == 'menu_(l)ink') {
          message = "node to link from?"
          msg(message)
@@ -5017,7 +5280,7 @@ if (part != undefined) {\n\
          message = "node to fix link from?"
          msg(message)
          }
-      else if (label == 'menu_(u)nlink node') {
+      else if (label == 'menu_unlink node') {
          message = "node to unlink input?"
          msg(message)
          }
@@ -5032,6 +5295,12 @@ if (part != undefined) {\n\
       else if (label == 'menu_(m)ove nodes') {
          message = "parent node to move? (can also shift-drag)"
          msg(message)
+         }
+      else if (label == 'menu_(u)ndo') {
+         graph.fromstring(graph.last_undo_string)
+         graph.evaluate()
+         graph.render()
+         msg('undo')
          }
       else if (label == 'menu_align (x)') {
          message = "node to align x to?"
@@ -5146,17 +5415,7 @@ if (part != undefined) {\n\
          msg("click and drag background to pan")
          }
       else if (label == 'menu_(l)imits') {
-         win = open('','fab limits')
-         win.document.write('\
-            <form>\
-            <input type="button" value="submit" onClick="opener.view_form(xmin_input.value,ymin_input.value,zmin_input.value,dxyz_input.value)"><br>\
-            view:<br>\
-            xmin: <input type="text" name="xmin_input" value="'+view_xmin+'"><br>\
-            ymin: <input type="text" name="ymin_input" value="'+view_ymin+'"><br>\
-            zmin: <input type="text" name="zmin_input" value="'+view_zmin+'"><br>\
-            width: <input type="text" name="dxyz_input" value="'+view_dx+'"><br>\
-            </form>\
-            ')
+         get_view()
          }
       else if (label == 'menu_(r)esolution') {
          get_resolution()
@@ -5214,7 +5473,7 @@ if (part != undefined) {\n\
       // command not implemented
       //
       else {
-         msg(label+' not implemented')
+         msg(label+' not yet implemented')
 	      }
       rm_menu()
       }
@@ -5358,9 +5617,9 @@ if (part != undefined) {\n\
       //
       var w = menu_width
       var h = menu_height
-      CBA(0,.75*h,h/4.0)
-      text(1.2*h,.8*h,font_size,"black","prompt","fab ("+date+")")
-      text(8*h,.8*h,font_size,"black","message","")
+      CBA(0,.5*text_height,text_font_size/3.5)
+      text(.9*text_height,.6*text_height,text_font_size,"black","prompt","fab ("+date+")")
+      text(6.25*text_height,.6*text_height,text_font_size,"black","message","")
       button(0*w,h,w,h,"(s)hapes","shapes_menu(evt)")
       button(1*w,h,w,h,"(o)perators","operators_menu(evt)")
       button(2*w,h,w,h,"(t)ransforms","transform_menu(evt)")
@@ -5575,16 +5834,16 @@ if (part != undefined) {\n\
       //
       // label panels
       //
-      text(font_size/2,2*menu_height+panel_size-font_size/2,
-         font_size,"rgb(200,0,0)","xy","xy")
-      text(font_size/2,2*menu_height+2*panel_size-font_size/2,
-         font_size,"rgb(200,0,0)","xz","xz")
-      text(panel_size+font_size/2,
-         2*menu_height+panel_size-font_size/2,
-         font_size,"rgb(200,0,0)","zy","zy")
-      text(panel_size+font_size/2,
-         2*menu_height+2*panel_size-font_size/2,
-         font_size,"rgb(200,0,0)","xyz","xyz")
+      text(text_font_size/2,2*menu_height+panel_size-text_font_size/2,
+         text_font_size,"rgb(200,0,0)","xy","xy")
+      text(text_font_size/2,2*menu_height+2*panel_size-text_font_size/2,
+         text_font_size,"rgb(200,0,0)","xz","xz")
+      text(panel_size+text_font_size/2,
+         2*menu_height+panel_size-text_font_size/2,
+         text_font_size,"rgb(200,0,0)","zy","zy")
+      text(panel_size+text_font_size/2,
+         2*menu_height+2*panel_size-text_font_size/2,
+         text_font_size,"rgb(200,0,0)","xyz","xyz")
       //
       // draw borders
       //
@@ -5636,6 +5895,9 @@ if (part != undefined) {\n\
    //
    document.onkeydown = key_handler
    function key_handler() {
+      edit_panel_div = document.getElementById("edit_panel_div")
+      if (edit_panel_div != null)
+         return
       if (message == "") {
          if (event.keyCode == 38) {
             //
@@ -5869,16 +6131,16 @@ if (part != undefined) {\n\
             }
          }
       else if (message == "edit") {
-         if (String.fromCharCode(event.keyCode) == "L") {
+         if (String.fromCharCode(event.keyCode) == "N") {
+            message = "(n)ode"
+            action(0)
+            }
+         else if (String.fromCharCode(event.keyCode) == "L") {
             message = "(l)ink"
             action(0)
             }
          else if (String.fromCharCode(event.keyCode) == "F") {
             message = "(f)ixed link"
-            action(0)
-            }
-         else if (String.fromCharCode(event.keyCode) == "U") {
-            message = "(u)nlink node"
             action(0)
             }
          else if (String.fromCharCode(event.keyCode) == "D") {
@@ -5891,6 +6153,10 @@ if (part != undefined) {\n\
             }
          else if (String.fromCharCode(event.keyCode) == "M") {
             message = "(m)ove nodes"
+            action(0)
+            }
+         else if (String.fromCharCode(event.keyCode) == "U") {
+            message = "(u)ndo"
             action(0)
             }
          else if (String.fromCharCode(event.keyCode) == "X") {

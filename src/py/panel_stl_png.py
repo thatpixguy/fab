@@ -5,7 +5,7 @@
 # Neil Gershenfeld
 # CBA MIT 3/6/11
 #
-# (c) Massachusetts Institute of Technology 2011
+# (c) Massachusetts Institute of Technology 2012
 # Permission granted for experimental and personal use;
 # license for commercial sale available from MIT.
 #

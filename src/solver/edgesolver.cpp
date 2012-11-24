@@ -10,6 +10,7 @@
 
 using namespace std;
 using boost::logic::tribool;
+using boost::logic::indeterminate;
 using boost::thread;
 
 const Vec3f OFFSETS[] = {
@@ -78,7 +79,13 @@ void EdgeSolver::evaluate_region(Region r)
     
     // If the result was unambiguous, then we don't care since it
     // is either entirely inside or outside the image. 
-    if (!indeterminate(tree->root->result_bool)) {
+    bool result = false;
+    if (v.mode == SOLVE_BOOL)
+        result = !indeterminate(tree->root->result_bool);
+    else if (v.mode == SOLVE_REAL)
+        result = !indeterminate(tree->root->result_interval < FabInterval(0));
+        
+    if (result) {
         v.pb.update(r.volume);
         return;
     }
@@ -118,7 +125,11 @@ void EdgeSolver::evaluate_voxel(Region r)
         
         if (point_cache.find(pos) == point_cache.end()) {
             tree->eval(v.x(pos.x), v.y(pos.y), v.z(pos.z));
-            point_cache[pos] = tree->root->result_bool;        
+
+            if (v.mode == SOLVE_BOOL)
+                point_cache[pos] = tree->root->result_bool;
+            else if (v.mode == SOLVE_REAL)
+                point_cache[pos] = tree->root->result_float < 0;
         }
         
         if (point_cache[pos])
@@ -155,7 +166,8 @@ Vec3f EdgeSolver::interpolate(Vec3f filled, Vec3f empty)
         Vec3f pos = filled + offset * interp;
     
         tree->eval(v.x(pos.x), v.y(pos.y), v.z(pos.z));
-        if (tree->root->result_bool)
+        if ((v.mode == SOLVE_BOOL && tree->root->result_bool) || 
+            (v.mode == SOLVE_REAL && tree->root->result_float < 0))
             interp += step_size;
         else
             interp -= step_size;

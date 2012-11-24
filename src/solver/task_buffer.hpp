@@ -10,6 +10,7 @@ class MathTree;
 // Simple structure containing a task to be solved.
 typedef struct Task {
     Task();
+    Task(Region region);
     Task(Region region, MathTree* tree);
     
     Region region;
@@ -45,6 +46,13 @@ public:
     ~TaskBuffer();
     
     
+    /* bool full() const
+     *
+     *  Checks to see if the task buffer is full in a thread-unsafe
+     *  way.  A further check should be run in a thread-safe manner.
+     */
+    bool full() const;
+    
     /* bool add(Region region, MathTree* tree)
      *
      *  Adds a task to the latest available slot, with the provided
@@ -53,6 +61,7 @@ public:
      *
      *  If all slots are full, returns false; otherwise returns true.
      */
+    bool add(Region region);
     bool add(Region region, MathTree* tree);
     
     

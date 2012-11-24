@@ -13,7 +13,7 @@ typedef boost::numeric::interval<float,
         boost::numeric::interval_lib::save_state_nothing<
             boost::numeric::interval_lib::rounded_transc_exact<float>
         >,
-        boost::numeric::interval_lib::checking_base<float>
+        boost::numeric::interval_lib::checking_no_empty<float>
     >
 > FabInterval;
 
