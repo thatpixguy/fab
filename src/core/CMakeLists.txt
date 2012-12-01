@@ -9,6 +9,11 @@ set(PROGRAMS stl_info stl_png stl_path png_size png_scale png_distances
 find_package(PNG REQUIRED)
 include_directories(${PNG_INCLUDE_DIR})
 
+#maybe make this conditional rather than required
+find_package (LibXml2 REQUIRED)
+ADD_DEFINITIONS ("${LIBXML2_DEFINITIONS}")
+include_directories(${LIBXML2_INCLUDE_DIR})
+
 #set(CMAKE_C_FLAGS "-Wall -g")
 set(CMAKE_C_FLAGS "-Wall -O3")
 
@@ -23,6 +28,8 @@ foreach(program ${PROGRAMS})
   add_executable(${program} ${program}.c)
   target_link_libraries(${program} fab ${PNG_LIBRARY})
 endforeach(program)
+
+target_link_libraries(svg_path ${LIBXML2_LIBRARIES})
 
 if( ${CMAKE_PROJECT_NAME} MATCHES fabmod )
   install(TARGETS ${PROGRAMS} DESTINATION ${PROJECT_SOURCE_DIR}/../bin)

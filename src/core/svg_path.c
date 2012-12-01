@@ -19,13 +19,17 @@
 
 #include "fab.h"
 
+#include <libxml/xmlreader.h>
+
 void fab_read_svg(struct fab_vars *v, char *input_file_name, int points, int resolution, float z) {
    //
    // read SVG into fab_vars
    //
    #define SVG_MAX_FILE 10000000
-	FILE *input_file;
-   char *buf = calloc(sizeof(char),SVG_MAX_FILE);
+   //FILE *input_file;
+   //char *buf = calloc(sizeof(char),SVG_MAX_FILE);
+   xmlTextReaderPtr reader;
+   xmlChar *xc;
    int point,ret;
    char *ptr,*start,*end,*endptr;
    double minx,miny,width,height;
@@ -35,6 +39,7 @@ void fab_read_svg(struct fab_vars *v, char *input_file_name, int points, int res
    double ax,bx,cx,ay,by,cy,xt,yt,t;
    char units[3];
    char current_element;
+   x = y = 0;
    //
    // parse quoted number and units
    // return scale in mm/unit
@@ -78,7 +83,6 @@ void fab_read_svg(struct fab_vars *v, char *input_file_name, int points, int res
    // return next number after pointer
    //
    void next_number(char **ptr, double *number) {
-      char str[100];
       char haystack[] = "0123456789.-+";
       char *end;
       //
@@ -184,50 +188,63 @@ void fab_read_svg(struct fab_vars *v, char *input_file_name, int points, int res
       yn = nscale * scale * (b*x + d*y + f);
       return yn;
       }
+   int find_element(xmlTextReaderPtr reader, xmlChar *name) {
+     while (xmlTextReaderRead(reader) && xmlTextReaderConstName(reader) != name) {
+       // keep scanning
+     }
+     return xmlTextReaderConstName == name;
+   }
+   int find_sibling_element(xmlTextReaderPtr reader, xmlChar *name) {
+     while (xmlTextReaderNext(reader) && xmlTextReaderConstName(reader) != name) {
+       // keep scanning
+     }
+     return xmlTextReaderConstName == name;
+   }
    //
    // read SVG file
    //
-   input_file = fopen(input_file_name, "rb");
-   if (input_file == 0) {
+   reader = xmlReaderForFile(input_file_name, NULL, 0);
+   //input_file = fopen(input_file_name, "rb");
+   if (reader == NULL) {
       printf("fab.c: oops -- can't open %s\n",input_file_name);
       exit(-1);
-      }
-   ret = fread(buf,1,SVG_MAX_FILE,input_file);
-   endptr = buf + ret;
-   fclose(input_file);
-   printf("read %d bytes from %s\n",ret,input_file_name);
+   }
+   //ret = fread(buf,1,SVG_MAX_FILE,input_file);
+   //endptr = buf + ret;
+   //fclose(input_file);
+   //printf("read %d bytes from %s\n",ret,input_file_name);
    //
    // find SVG element
    //
-   ptr = strstr(buf,"<svg");
-   if (ptr == NULL) {
+   find_element(reader, BAD_CAST "svg");
+   //ptr = strstr(buf,"<svg");
+   if (reader == NULL) {
       printf("fab.c: oops -- no SVG element\n");
       exit(-1);
       }
    //
    // check for viewBox
    //
-   start = strstr(ptr,"viewBox=");
-      //
-      // yes, use viewBox
-      //
-   if (start != NULL) {
-      next_number(&start,&minx);
-      next_number(&start,&miny);
-      next_number(&start,&width);
-      next_number(&start,&height);
-      //
-      // OpenOffice default 100/mm
-      //
-      width = width / 100;
-      height = height / 100;
-      scale = 1.0/100.0;
-      printf("   minx %f\n",minx);
-      printf("   miny %f\n",miny);
-      printf("   width %f\n",width);
-      printf("   height %f\n",height);
-      }
-   else {
+   if(xc = xmlTextReaderGetAttribute(reader,"viewBox")) {
+       //
+       // yes, use viewBox
+       //
+          next_number(&xc,&minx);
+          next_number(&xc,&miny);
+          next_number(&xc,&width);
+          next_number(&xc,&height);
+          //
+          // OpenOffice default 100/mm
+          //
+          width = width / 100;
+          height = height / 100;
+          scale = 1.0/100.0;
+          printf("   minx %f\n",minx);
+          printf("   miny %f\n",miny);
+          printf("   width %f\n",width);
+          printf("   height %f\n",height);
+       free(xc);
+   } else {
       //
       // no, use width and height
       //
@@ -265,7 +282,7 @@ void fab_read_svg(struct fab_vars *v, char *input_file_name, int points, int res
    //
    // find graphic elements
    //
-   ptr = buf;
+   //ptr = buf;
    do {
       ptr += 1;
       if (strncmp(ptr,"<path",5) == 0) {
@@ -558,7 +575,7 @@ void fab_read_svg(struct fab_vars *v, char *input_file_name, int points, int res
          printf("   svg_path: text not yet implemented\n");
          }
       } while ((endptr-ptr) > 1);
-      free(buf);
+      //free(buf);
    }
 
 main(int argc, char **argv) {
