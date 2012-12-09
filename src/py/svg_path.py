@@ -80,13 +80,15 @@ class Path:
         if not self.segments:
             self.new_segment()
 
+        if not self.segments[-1]:
+            # store the first point, untransformed
+            self.segment_start = args
+
         self.segments[-1].append(transform_point(self.transform,args))
 
     def close_segment(self):
-        p = self.segments[-1][0]
-        self.segments[-1].append(p)
-        # would it be less ugly to store this untransformed somewhere?
-        return (self.transform.I*numpy.matrix(p).transpose()).transpose().tolist()[0]
+        self.add_point(*self.segment_start)
+        return self.segment_start
         
 
 svg_ns = "{http://www.w3.org/2000/svg}"
@@ -98,8 +100,6 @@ units_re = re.compile("(.*?)([a-zA-Z]*)$")
 transform_re = re.compile("(\w+)(?:\((.*?)\))?")
 
 path_re = re.compile(r'(?P<num>[+-]?[0-9.]+)|(?P<cmd>[a-zA-Z])')
-
-graphical_elements = ["g","path","rect","circle","ellipse","line","polyline","polygon","text"]
 
 def parse_transform(string):
     m = numpy.identity(3)
@@ -136,7 +136,11 @@ def chunks(l, n):
 
 def parse_path(element,path):
     def process_command(cmd,args,path,x0,y0):
-        #print "process_command called with {}".format(cmd)
+        """
+        process cmd and apply to path. 
+        takes current point coordinates for relative commands.
+        returns new current point (for future relative commands).
+        """
         if cmd in ["m","l"]:
             if cmd=="m": path.new_segment()
             for (x,y) in chunks(args,2):
@@ -150,7 +154,7 @@ def parse_path(element,path):
                 y0 = y
                 path.add_point(x0,y0,0)
         elif cmd in ["Z","z"]:
-            (x0,y0,z) = path.close_segment()
+            (x0,y0,junk) = path.close_segment()
         else:
             print >> sys.stderr, "ignoring unknown path command {} with args {}".format(cmd,args)
         return (x0,y0) 
@@ -180,16 +184,13 @@ def parse_group(tree,path):
             path.apply_transform(parse_transform(element.attrib["transform"]))
 
         if element.tag == "{}g".format(svg_ns):
-            print >> sys.stderr, "parsing <g>"
             parse_group(element,path)
         elif element.tag == "{}rect".format(svg_ns):
-            print >> sys.stderr, "parsing <rect>"
             parse_rect(element,path)
         elif element.tag == "{}path".format(svg_ns):
-            print >> sys.stderr, "parsing <path>"
             parse_path(element,path)
         else:
-            print >> sys.stderr, "ignore unsupported <{}> tag".format(element.tag)
+            print >> sys.stderr, "ignored unsupported <{}> tag".format(element.tag)
     path.pop_transform()
 
 def split_on_whitespace_or_comma(string):
@@ -211,7 +212,6 @@ def to_mm(base,units=""):
         raise ValueError("units {} unknown".format(units))
 
 def parse_to_mm(string):
-    print >> sys.stderr, "parse_to_mm called with {}".format(string)
     (base,units) = units_re.match(string).groups()
     return to_mm(base,units)
 
@@ -219,26 +219,38 @@ def parse_to_mm(string):
 def main():
     global root, path
 
-    usage = "usage: %prog [options] svg_file"
+    usage = "usage: %prog [options] in.svg out.path [points [resolution [z]]] "
     parser = OptionParser(usage)
+
     parser.add_option("-v", "--verbose",
                       action="store_true", dest="verbose")
     parser.add_option("-q", "--quiet",
                       action="store_false", dest="verbose")
-    parser.add_option("-r", "--resolution",
+    parser.add_option("-r", "--resolution", help="path resolution (optional, default %default)",
                       action="store", dest="resolution")
-    parser.add_option("-b", "--viewbox",
-                      action="store_true", dest="viewbox")
+    parser.add_option("-p", "--points", help="points per curve segment (optional, default %default)",
+                      action="store", dest="points")
+    parser.add_option("-z", "--zdepth", help="path depth (optional, mm, default %default)",
+                      action="store", dest="zdepth")
+    parser.add_option("-x", "--noviewbox", help="disable interpretation of viewBox attribute",
+                      action="store_false", dest="viewbox")
+
+    parser.set_defaults(resolution=1000,points=25,zdepth=0,viewbox=True)
 
     (options, args) = parser.parse_args()
-    resolution = options.resolution or 1000
 
-    print >> sys.stderr, "resolution = {}".format(resolution)
 
-    if len(args) != 1:
+    if len(args) < 2:
         parser.error("incorrect number of arguments")
 
     svg_file = args[0]
+    out_file = args[1]
+    if len(args) >= 3:
+        options.points = args[2]
+    if len(args) >= 4:
+        options.resolution = args[3]
+    if len(args) >= 5:
+        options.zdepth = args[4]
 
     root = etree.parse(svg_file).getroot()
 
@@ -262,13 +274,13 @@ def main():
         path.apply_transform(scale_matrix(path.dx/w,path.dy/h))
 
 
-    path.nx = resolution
-    path.ny = int(resolution*path.dy/path.dx)
+    path.nx = options.resolution
+    path.ny = int(options.resolution*path.dy/path.dx)
 
     parse_group(svg,path)
 
 
-    print(path)    
+    print >> file(out_file,"w"), path
 
 if __name__ == "__main__":
     main()
