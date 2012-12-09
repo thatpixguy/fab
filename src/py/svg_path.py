@@ -48,7 +48,7 @@ class Path:
         s+="\n"
         s+="nx ny nz: {} {} {}\n".format(self.nx,self.ny,self.nz)
         s+="dx dy dz: {} {} {}\n".format(self.dx,self.dy,self.dz)
-        s+="xmin ymin zmin: {} {} {}\n".format(self.xmin,self.ymin,self.zmin)
+        s+="xmin ymin zmin: {} {} {}\n".format(self.minx,self.miny,self.minz)
        
         s+="path start:\n" 
         for segment in self.segments:
@@ -141,6 +141,7 @@ def parse_path(element,path):
         takes current point coordinates for relative commands.
         returns new current point (for future relative commands).
         """
+        global options
         if cmd in ["m","l"]:
             if cmd=="m": path.new_segment()
             for (x,y) in chunks(args,2):
@@ -153,6 +154,56 @@ def parse_path(element,path):
                 x0 = x
                 y0 = y
                 path.add_point(x0,y0,0)
+        elif cmd in ["C","c"]:
+            for (x1,y1,x2,y2,x,y) in chunks(args,6):
+                if cmd=="c":
+                    x1+=x0
+                    y1+=y0
+                    x2+=x0
+                    y2+=y0
+                    x+=x0
+                    y+=y0 
+                cx = 3 * (x1 - x0)
+                bx = 3 * (x2 - x1) - cx
+                ax = x - x0 - cx - bx
+                cy = 3 * (y1 - y0)
+                by = 3 * (y2 - y1) - cy
+                ay = y - y0 - cy - by
+                for point in xrange(options.points):
+                    t = point / (options.points - 1.0)
+                    xt = ax*t*t*t + bx*t*t + cx*t + x0
+                    yt = ay*t*t*t + by*t*t + cy*t + y0
+                    path.add_point(xt,yt,0)
+                x0 = x
+                y0 = y
+        elif cmd in ["A","a"]:
+            for (rx,ry,rotation,large_arc,sweep,x,y) in chunks(args,7):
+                if cmd=="a":
+                    x+=x0
+                    y+=y0
+                tdiff = 1-((x-x0)*(x-x0)/(rx*rx) + (y-y0)*(y-y0)/(ry*ry))/2
+                if tdiff > 1:
+                    tdiff = 1
+                if tdiff < -1:
+                    tdiff = -1
+                tdiff = acos(tdiff)
+                tsum = (x-x0)/(-2*rx*sin(tdiff/2))
+                if tsum > 1:
+                    tsum = 1
+                if tsum < -1:
+                    tsum = -1
+                tsum = 2*asin(tsum)
+                t1 = (tsum+tdiff)/2
+                t0 = tsum-t1
+                cx = x0 - rx*cos(t0)
+                cy = y0 - ry*sin(t0)
+                for point in option.points:
+                    t = t0 + (t1-t0) * point / (option.points - 1.0)
+                    xt = cx + rx*cos(t)
+                    yt = cy + ry*sin(t)
+                    path.add_point(xt,yt,0)
+                x0 = x
+                y0 = y
         elif cmd in ["Z","z"]:
             (x0,y0,junk) = path.close_segment()
         else:
@@ -217,7 +268,7 @@ def parse_to_mm(string):
 
 
 def main():
-    global root, path
+    global options
 
     usage = "usage: %prog [options] in.svg out.path [points [resolution [z]]] "
     parser = OptionParser(usage)
@@ -263,6 +314,7 @@ def main():
    
     path = Path()
 
+    path.minz = options.zdepth
     path.minx = path.miny = 0
     path.dx  = parse_to_mm(svg.attrib["width"]) 
     path.dy = parse_to_mm(svg.attrib["height"])
