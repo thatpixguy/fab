@@ -1,5 +1,7 @@
 import fab
 import re
+import fractions
+import math
 
 from optparse import OptionParser
 
@@ -21,6 +23,14 @@ def to_mm(n,units):
     elif units=="mm":
         return float(n)
     raise ValueError("unknown units {}".format(units))
+
+def approximate_dyadic_fraction(r,max_denominator=128):
+    return min([fractions.Fraction(n,2**d) for d in range(int(math.log(max_denominator,2))) for n in range(1,2**d,2)],key=lambda x:abs(x-r))
+
+def pretty_print_tools(tools):
+    for number, data in tools.items():
+        print "tool T{}:".format(number)
+        print "  diameter: {} mm, (approx. {} inch)".format(data["dia"],approximate_dyadic_fraction(data["dia"]/25.4)) 
 
 def main():
 
@@ -65,6 +75,7 @@ def main():
             # TODO: compensation index?
             tool = int(m.group("targ"))
         elif m.group("c"):
+            print approximate_dyadic_fraction(float(m.group("dia")))
             dia = to_mm(m.group("dia"),units)
             tools.setdefault(tool,{})
             tools[tool]["dia"] = dia
@@ -80,7 +91,8 @@ def main():
                     y = arg
             #path.new_segment()
             #path.add_point(x,y,0)
-    print tools
+
+    pretty_print_tools(tools)
                 
 
 if __name__ == "__main__":
