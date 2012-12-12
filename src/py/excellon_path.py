@@ -30,7 +30,14 @@ def approximate_dyadic_fraction(r,max_denominator=128):
 def pretty_print_tools(tools):
     for number, data in tools.items():
         print "tool T{}:".format(number)
-        print "  diameter: {} mm, (approx. {} inch)".format(data["dia"],approximate_dyadic_fraction(data["dia"]/25.4)) 
+        dia = float(data["dia"])
+        # code to deal with the unlikely case of diameters over 1 inch
+        f,i = math.modf(dia/25.4) 
+        if i: 
+            istr="{}-".format(int(i))
+        else:
+            istr=""
+        print "  diameter: {} mm, (approx. {} inch)".format(dia,istr+str(approximate_dyadic_fraction(f))) 
 
 def main():
 
