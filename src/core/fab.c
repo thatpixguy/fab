@@ -1622,7 +1622,7 @@ void fab_path_join(struct fab_vars *vin1, struct fab_vars *vin2, struct fab_vars
    vout->dz = (zmax-zmin);
    vout->nx = dpmm * vout->dx;
    vout->ny = dpmm * vout->dy;
-   vout->nz = dpmm * vout->dz;
+   vout->nz = fmax(1,dpmm * vout->dz);
    fab_path_start(vout,vin1->path->dof);
    //
    // copy first path
