@@ -69,8 +69,8 @@ def parse_path(element,path,transform):
                 cy = 3 * (y1 - y0)
                 by = 3 * (y2 - y1) - cy
                 ay = y - y0 - cy - by
-                for point in xrange(options.points):
-                    t = point / (options.points - 1.0)
+                for point in xrange(int(options.points)):
+                    t = point / (int(options.points) - 1.0)
                     xt = ax*t*t*t + bx*t*t + cx*t + x0
                     yt = ay*t*t*t + by*t*t + cy*t + y0
                     path.add_point(xt,yt,0,transform)
@@ -178,12 +178,14 @@ def main():
                       action="store", dest="resolution")
     parser.add_option("-p", "--points", help="points per curve segment (optional, default %default)",
                       action="store", dest="points")
+    parser.add_option("-d", "--dpcm", help="resolution in dots per cm (optional, overrides resolution)",
+                      action="store", dest="dpcm")
     parser.add_option("-z", "--zdepth", help="path depth (optional, mm, default %default)",
                       action="store", dest="zdepth")
     parser.add_option("-x", "--noviewbox", help="disable interpretation of viewBox attribute",
                       action="store_false", dest="viewbox")
 
-    parser.set_defaults(resolution=1000,points=25,zdepth=0,viewbox=True)
+    parser.set_defaults(resolution=1000,points=25,zdepth=0,viewbox=True,dpcm=None)
 
     (options, args) = parser.parse_args()
 
@@ -213,19 +215,19 @@ def main():
 
     transform = fab.Transform()
 
-    path.minz = options.zdepth
-    path.minx = path.miny = 0
-    path.dx = parse_to_mm(svg.attrib["width"]) 
-    path.dy = parse_to_mm(svg.attrib["height"])
+    path.dof = 3
+    path.min = [0,0,options.zdepth]
+    path.d = [parse_to_mm(svg.attrib["width"]),parse_to_mm(svg.attrib["height"]),0]
 
     if options.viewbox and svg.attrib.has_key("viewBox"):
         x,y,w,h = [to_mm(float(s)) for s in fab.split_on_whitespace_or_comma(svg.attrib["viewBox"])]
         transform.translate(-x,-y)
-        transform.scale(path.dx/w,path.dy/h)
+        transform.scale(path.d[0]/w,path.d[1]/h)
 
-
-    path.nx = options.resolution
-    path.ny = int(options.resolution*path.dy/path.dx)
+    if options.dpcm:
+        path.n = map(lambda a: int(max(1,a*float(options.dpcm)/10.0)),path.d)
+    else:
+        path.n = map(int,[options.resolution,options.resolution*path.d[1]/path.d[0],1])
 
     parse_group(svg,path,transform)
 

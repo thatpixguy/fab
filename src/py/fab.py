@@ -60,9 +60,9 @@ class Path:
     def __init__(self):
         self.dof = 3
         self.units = "mm"
-        self.nx = self.ny = self.nz = 0
-        self.dx = self.dy = self.dz = 0
-        self.xmin = self.ymin = self.zmin = 0
+        self.n = [1]*self.dof
+        self.d = [0]*self.dof
+        self.min = [0]*self.dof
         # list of lists(segments) of dof-tuples
         self.segments = []
        
@@ -73,16 +73,19 @@ class Path:
         for d in range(self.dof):
             s+=" {}".format(self.units)
         s+="\n"
-        s+="nx ny nz: {} {} {}\n".format(self.nx,self.ny,self.nz)
-        s+="dx dy dz: {} {} {}\n".format(self.dx,self.dy,self.dz)
-        s+="xmin ymin zmin: {} {} {}\n".format(self.minx,self.miny,self.minz)
+
+        for (f,l) in [("n{}",self.n),("d{}",self.d),("{}min",self.min)]:
+            s+=" ".join([f.format(a) for a in "xyzw"[:self.dof]])
+            s+=": "
+            s+=" ".join(map(str,l[:self.dof]))
+            s+="\n"
        
         s+="path start:\n" 
         for segment in self.segments:
             s+="segment start:\n"
             for point in segment:
                 # each segment would be a list of dof-tuples?
-                s+=" ".join(str(int(axis*self.nx/self.dx)) for axis in point)+"\n"
+                s+=" ".join(str(int(v*self.n[axis]/(self.d[axis] or 1))) for (axis,v) in enumerate(point))+"\n"
             s+="segment end:\n"
         s+="path end:\n" 
         
