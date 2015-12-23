@@ -107,7 +107,7 @@ class Path:
 
     def add_point(self,*args):
 
-        #if args[-1] is a matrix, apply it (and then pop it from the list of axes abviously)
+        #if args[-1] is a matrix, apply it (and then pop it from the list of axes obviously)
         if isinstance(args[-1],Transform):
             transform=args[-1]
             axes=args[:-1]
