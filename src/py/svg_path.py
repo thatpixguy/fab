@@ -14,7 +14,8 @@ svg_ns = "{http://www.w3.org/2000/svg}"
 
 units_re = re.compile("(.*?)([a-zA-Z]*)$")
 
-path_re = re.compile(r'(?P<num>[+-]?[0-9.]+)|(?P<cmd>[a-zA-Z])')
+# allow floats with exponents
+path_re = re.compile(r'(?P<num>[-+]?[0-9]*\.?[0-9]+([eE][-+]?[0-9]+)?)|(?P<cmd>[a-zA-Z])')
 
 def parse_rect(element,path,transform):
     x = parse_to_mm(element.attrib["x"])
@@ -44,7 +45,12 @@ def parse_path(element,path,transform):
         global options
         if cmd in ["m","l"]:
             if cmd=="m": path.new_segment()
-            for (x,y) in chunks(args,2):
+            #for (x,y) in chunks(args,2):
+            for chunk in chunks(args,2):
+                if len(chunk)<2:
+                    print "Ignoring undersized parameter chunk[{}] for command '{}':{}".format(len(chunk),cmd,chunk)
+                    break
+                (x,y) = chunk
                 x0 += x
                 y0 += y
                 path.add_point(x0,y0,0,transform)
@@ -55,27 +61,37 @@ def parse_path(element,path,transform):
                 y0 = y
                 path.add_point(x0,y0,0,transform)
         elif cmd in ["C","c"]:
-            for (x1,y1,x2,y2,x,y) in chunks(args,6):
-                if cmd=="c":
-                    x1+=x0
-                    y1+=y0
-                    x2+=x0
-                    y2+=y0
-                    x+=x0
-                    y+=y0 
-                cx = 3 * (x1 - x0)
-                bx = 3 * (x2 - x1) - cx
-                ax = x - x0 - cx - bx
-                cy = 3 * (y1 - y0)
-                by = 3 * (y2 - y1) - cy
-                ay = y - y0 - cy - by
-                for point in xrange(int(options.points)):
-                    t = point / (int(options.points) - 1.0)
-                    xt = ax*t*t*t + bx*t*t + cx*t + x0
-                    yt = ay*t*t*t + by*t*t + cy*t + y0
-                    path.add_point(xt,yt,0,transform)
-                x0 = x
-                y0 = y
+            #for (x1,y1,x2,y2,x,y) in chunks(args,6):
+            chunklist=[]
+            for chunk in chunks(args,6):
+                if len(chunk)<6:
+                    print "Ignoring undersized parameter chunk[{}] for command '{}':{}".format(len(chunk),cmd,chunk)
+                    break
+                try:
+                    chunklist.append(chunk)
+                    (x1,y1,x2,y2,x,y) = chunk
+                    if cmd=="c":
+                        x1+=x0
+                        y1+=y0
+                        x2+=x0
+                        y2+=y0
+                        x+=x0
+                        y+=y0 
+                    cx = 3 * (x1 - x0)
+                    bx = 3 * (x2 - x1) - cx
+                    ax = x - x0 - cx - bx
+                    cy = 3 * (y1 - y0)
+                    by = 3 * (y2 - y1) - cy
+                    ay = y - y0 - cy - by
+                    for point in xrange(int(options.points)):
+                        t = point / (int(options.points) - 1.0)
+                        xt = ax*t*t*t + bx*t*t + cx*t + x0
+                        yt = ay*t*t*t + by*t*t + cy*t + y0
+                        path.add_point(xt,yt,0,transform)
+                    x0 = x
+                    y0 = y
+                except ValueError as e:
+                    print "ValueError: {}, (chunklist[{}]=={})".format(e,len(chunklist),chunklist)
         elif cmd in ["A","a"]:
             for (rx,ry,rotation,large_arc,sweep,x,y) in chunks(args,7):
                 if cmd=="a":
@@ -217,12 +233,14 @@ def main():
 
     path.dof = 3
     path.min = [0,0,options.zdepth]
-    path.d = [parse_to_mm(svg.attrib["width"]),parse_to_mm(svg.attrib["height"]),0]
+    d = [parse_to_mm(svg.attrib["width"]),parse_to_mm(svg.attrib["height"]),0]
 
     if options.viewbox and svg.attrib.has_key("viewBox"):
         x,y,w,h = [to_mm(float(s)) for s in fab.split_on_whitespace_or_comma(svg.attrib["viewBox"])]
         transform.translate(-x,-y)
-        transform.scale(path.d[0]/w,path.d[1]/h)
+        transform.scale(d[0]/w,d[1]/h)
+
+    path.d = transform.apply(d)
 
     if options.dpcm:
         path.n = map(lambda a: int(max(1,a*float(options.dpcm)/10.0)),path.d)
