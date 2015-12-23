@@ -33,7 +33,7 @@ void ThreadManager<SOLVER_TYPE>::evaluate(MathTree* tree)
     // Create a task for each region
     list<Region>::iterator it;
     for (it = regions.begin(); it != regions.end(); ++it) {
-        cout << "Added region " << *it << endl;
+//        cout << "Added region " << *it << endl;
         if (!task_buffer.add(*it, tree)) {
             cout << "Failed to add initial task to task buffer!" << endl;
             exit(1);

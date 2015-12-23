@@ -26,24 +26,24 @@ PWD := $(shell pwd)
 
 help:
 	@echo "Makefile options:"
-	@echo "	make fab	 Compile all files and copy scripts from src to bin"
-	@echo "	make doc	 Saves command names and docstrings into commands.html"
-	@echo "	make zip	 Bundles relevant files in fab.zip"
-	@echo "	make dist	 Copies files to Web directory"
-	@echo "	make install	 Copies files to /usr/local/bin"
-	@echo "	make clean	 Removes compiled executables and scripts from bin"
+	@echo "    make fab           Compile all files and copy scripts from src to bin"
+	@echo "    make doc           Saves command names and docstrings into commands.html"
+	@echo "    make zip           Bundles relevant files in fab.zip"
+	@echo "    make dist          Copies files to Web directory"
+	@echo "    make install       Copies files to /usr/local/bin"
+	@echo "    make clean         Removes compiled executables and scripts from bin"
+	@echo "    make wxpython2.9   Downloads, compiles, and installs wxpython 2.9.4.1"
+	@echo "                       (Linux only)"
 
 fab:
 	@echo "Building with CMake"
 	@mkdir -p build
-
+	
 	@cd build;                                         \
 	 cmake ../src;                                     \
-	 echo $(PWD);                                      \
-	 make;                                             \
+	 make -j4;                                         \
 	 make install | sed "s@$(PWD)/src/../@@g"
 
-	
 doc: commands.html
 commands.html: fab
 	@# Dump all of the command names
@@ -62,9 +62,25 @@ commands.html: fab
 	   echo "" >> commands.html;                            \
 	done
 
+
 zip: commands.html
 	rm -f fab_src.zip
+	rm -rf src/apps/dist
+	rm -rf src/apps/build
+	
+#	@echo "Copying revision number to kokopelli About panel"
+#	@if which hg &>/dev/null && hg summary &> /dev/null; \
+#	 then \
+#	    sed "s/CHANGESET = .*/CHANGESET = '`hg id --num`:`hg id --id`'/g" \
+#	    src/guis/koko/__init__.py > tmp; \
+#	    mv tmp src/guis/koko/__init__.py; \
+#	 fi
+	
 	zip -r fab_src.zip commands.html Makefile src
+	
+#	@sed "s/CHANGESET = .*/CHANGESET = None/g" \
+#	    src/guis/koko/__init__.py > tmp; \
+#	    mv tmp src/guis/koko/__init__.py; \
 
 dist: zip
 	cp fab_src.zip ../../Web/fab_src.zip
@@ -90,8 +106,6 @@ install: fab
 	fi
 
 clean:
-	@echo "Removing executables and scripts from bin"
-	@rm -f $(Python) $(scripts) $(GUIs) $(C)
 	@echo "Deleting build directory"
 	@rm -rf build
 	

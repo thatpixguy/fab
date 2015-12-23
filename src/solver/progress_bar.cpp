@@ -9,7 +9,7 @@ ProgressBar::ProgressBar()
     // Nothing to do here
 }
 
-bool ProgressBar::update(unsigned long delta)
+bool ProgressBar::update(uint64_t delta)
 {  
     if (!lock.try_lock())
         return false;
@@ -19,9 +19,9 @@ bool ProgressBar::update(unsigned long delta)
     if (!cout_lock.try_lock())
         return true;
 
-    while (next_tick <= progress / float(full) * bar_length) {
+    while (next_tick <= (progress*bar_length) / full) {
         cout << "\r    [";        
-        for(int i = 0; i < next_tick; ++i)
+        for(unsigned i = 0; i < next_tick; ++i)
             cout << '|';
         for(int i = next_tick; i < bar_length; ++i)
             cout << ' ';

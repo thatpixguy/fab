@@ -12,33 +12,32 @@
 
 #include "fab.h"
 
-void fab_write_sbp(struct fab_vars *v, char *output_file_name, int direction, int spindle_speed, float xy_speed, float z_speed, float xy_jog_speed, float z_jog_speed, float z_jog) {
+void fab_write_sbp(struct fab_vars *v, char *output_file_name, int direction, int spindle_speed, float xy_speed, float z_speed, float xy_jog_speed, float z_jog_speed, float z_jog, float units) {
    //
    // write path to ShopBot file
    //
 	FILE *output_file;
    int i,nsegs=0,npts=0;
-   float units,xscale,yscale,zscale,x,y,z,xoffset,yoffset,zoffset;
+   float xscale,yscale,zscale,x,y,z,xoffset,yoffset,zoffset;
    output_file = fopen(output_file_name,"w");
    fprintf(output_file,"SA\r\n"); // set to absolute distances
    fprintf(output_file,"TR,%d,1\r\n",spindle_speed); // set spindle speed
    fprintf(output_file,"SO,1,1\r\n"); // set output number 1 to on
    fprintf(output_file,"pause,2\r\n"); // let spindle come up to speed
-   units = 1.0/25.4; // inches
-   xscale = units*v->dx/(v->nx-1.0);
-   yscale = units*v->dy/(v->ny-1.0);
+   xscale = v->dx/(v->nx-1.0)/units;
+   yscale = v->dy/(v->ny-1.0)/units;
    if (v->nz > 1)
-      zscale = units*v->dz/v->nz;
+      zscale = v->dz/(units*v->nz);
    else
       zscale = 0;
-   xoffset = units*v->xmin;
-   yoffset = units*v->ymin;
-   zoffset = units*v->zmin;
-   xy_speed = units*xy_speed;
-   z_speed = units*z_speed;
-   xy_jog_speed = units*xy_jog_speed;
-   z_jog_speed = units*z_jog_speed;
-   z_jog = units*z_jog;
+   xoffset = v->xmin/units;
+   yoffset = v->ymin/units;
+   zoffset = v->zmin/units;
+   xy_speed = xy_speed/units;
+   z_speed = z_speed/units;
+   xy_jog_speed = xy_jog_speed/units;
+   z_jog_speed = z_jog_speed/units;
+   z_jog = z_jog/units;
    fprintf(output_file,"MS,%f,%f\r\n",xy_speed,z_speed); // set xy,z speed
    fprintf(output_file,"JS,%f,%f\r\n",xy_jog_speed,z_jog_speed); // set jog xy,z speed
    fprintf(output_file,"JZ,%f\r\n",z_jog); // move up
@@ -141,19 +140,19 @@ void fab_write_sbp(struct fab_vars *v, char *output_file_name, int direction, in
    printf("   segments: %d, points: %d\n",nsegs,npts);
    }
 
-main(int argc, char **argv) {
+int main(int argc, char **argv) {
    //
    // local vars
    //
    struct fab_vars v;
    init_vars(&v);
-   float xy_speed, z_speed, xy_jog_speed, z_jog_speed, z_jog;
+   float xy_speed, z_speed, xy_jog_speed, z_jog_speed, z_jog, units;
    int direction,spindle_speed;
    //
    // command line args
    //
-   if (!((argc == 3) || (argc == 4) || (argc == 5) || (argc == 7) || (argc == 10))) {
-      printf("command line: path_sbp in.path out.sbp [direction [spindle_speed [xy_speed z_speed [xy_jog_speed z_jog_speed z_jog]]]]\n");
+   if (!((argc == 3) || (argc == 4) || (argc == 5) || (argc == 7) || (argc == 10) || (argc == 11))) {
+      printf("command line: path_sbp in.path out.sbp [direction [spindle_speed [xy_speed z_speed [xy_jog_speed z_jog_speed z_jog [units]]]]]]\n");
       printf("   in.path = input path file\n");
       printf("   out.sbp = output ShopBot file\n");
       printf("   direction = machining direction (optional, 0 conventional/1 climb, default 0)\n");
@@ -163,6 +162,7 @@ main(int argc, char **argv) {
       printf("   xy_jog_speed = xy jog speed (optional, mm/s, default 150)\n");
       printf("   z_jog_speed = z jog speed (optional, mm/s, default 150)\n");
       printf("   z_jog = z jog height (optional, mm, default 25)\n");
+      printf("   units = mm per file unit (optional, default 25.4)\n");
       exit(-1);
       }
    if (argc == 3) {
@@ -173,6 +173,7 @@ main(int argc, char **argv) {
       xy_jog_speed = 150;
       z_jog_speed = 150;
       z_jog = 25;
+      units = 25.4;
       }
    else if (argc == 4) {
       sscanf(argv[3],"%d",&direction);
@@ -182,6 +183,7 @@ main(int argc, char **argv) {
       xy_jog_speed = 150;
       z_jog_speed = 150;
       z_jog = 25;
+      units = 25.4;
       }
    else if (argc == 5) {
       sscanf(argv[3],"%d",&direction);
@@ -191,6 +193,7 @@ main(int argc, char **argv) {
       xy_jog_speed = 150;
       z_jog_speed = 150;
       z_jog = 25;
+      units = 25.4;
       }
    else if (argc == 7) {
       sscanf(argv[3],"%d",&direction);
@@ -200,6 +203,7 @@ main(int argc, char **argv) {
       xy_jog_speed = 150;
       z_jog_speed = 150;
       z_jog = 25;
+      units = 25.4;
       }
    else if (argc == 10) {
       sscanf(argv[3],"%d",&direction);
@@ -209,6 +213,17 @@ main(int argc, char **argv) {
       sscanf(argv[7],"%f",&xy_jog_speed);
       sscanf(argv[8],"%f",&z_jog_speed);
       sscanf(argv[9],"%f",&z_jog);
+      units = 25.4;
+      }
+   else if (argc == 11) {
+      sscanf(argv[3],"%d",&direction);
+      sscanf(argv[4],"%d",&spindle_speed);
+      sscanf(argv[5],"%f",&xy_speed);
+      sscanf(argv[6],"%f",&z_speed);
+      sscanf(argv[7],"%f",&xy_jog_speed);
+      sscanf(argv[8],"%f",&z_jog_speed);
+      sscanf(argv[9],"%f",&z_jog);
+      sscanf(argv[10],"%f",&units);
       }
    //
    // read path
@@ -217,6 +232,7 @@ main(int argc, char **argv) {
    //
    // write .sbp
    //
-   fab_write_sbp(&v,argv[2],direction,spindle_speed,xy_speed,z_speed,xy_jog_speed,z_jog_speed,z_jog);
+   fab_write_sbp(&v,argv[2],direction,spindle_speed,xy_speed,z_speed,xy_jog_speed,z_jog_speed,z_jog,units);
+   return 0;
    }
 

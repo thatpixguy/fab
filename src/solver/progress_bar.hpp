@@ -1,6 +1,7 @@
 #ifndef PROGRESS_H
 #define PROGRESS_H
 
+#include <stdint.h>
 #include <boost/thread.hpp>
 
 // This class draws a progress bar on the screen at regular intervals
@@ -20,17 +21,17 @@ public:
      *  
      *  Returns true if the update was accepted, false otherwise.
      */
-    bool update(unsigned long delta);
+    bool update(uint64_t delta);
 
 
     // The number of units in the full render
-    unsigned long full;
+    uint64_t full;
     
     // The number of units that have been solved
-    unsigned long progress;
+    uint64_t progress;
     
     // The next significant redraw point
-    int next_tick;
+    unsigned next_tick;
     
     // Total length of the ASCII bar
     int bar_length;

@@ -17,11 +17,14 @@ FabVars::FabVars(output_mode o, int argc, char** argv)
       decimation_error(1),
       mode(SOLVE_BOOL), output(o), projection(false),
       infile_name(""), outfile_name(""),
-      red(NULL), green(NULL), blue(NULL), intensity(NULL)
+      red(NULL), green(NULL), blue(NULL), intensity(NULL),
+      volume(0)
 {
 
     infile_name = argv[0];
-    outfile_name = argv[1];
+    
+    if (output != OUTPUT_STATS)
+        outfile_name = argv[1];
 
     pixels_per_mm = 10;
         
@@ -48,7 +51,10 @@ FabVars::FabVars(output_mode o, int argc, char** argv)
         if (argc >= 6)
             quality = atoi(argv[7]);
     }
-    
+    else if (output == OUTPUT_STATS) {
+        if (argc >= 2)
+            pixels_per_mm = atof(argv[1]);
+    }
     // Load data from the input file
     load();
 }
@@ -133,8 +139,8 @@ void FabVars::load()
     ni = ni ? ni : 1;
     nj = nj ? nj : 1;
     nk = nk ? nk : 1;
-    pb.full = ni*nj*nk;
-    
+    pb.full = uint64_t(ni)*uint64_t(nj)*uint64_t(nk);
+
     // Pick a minimum volume below which we won't do
     // octree recursion.
     min_volume = 64;
@@ -281,6 +287,12 @@ void FabVars::add_paths(const PathSet& p)
     geometry_lock.unlock();
 }
 
+void FabVars::add_volume(const uint64_t v)
+{
+    geometry_lock.lock();
+    volume += v;
+    geometry_lock.unlock();
+}
 ////////////////////////////////////////////////////////////////////////////////
 
 void FabVars::write_png()
@@ -360,6 +372,8 @@ void FabVars::write_stl()
 
 void FabVars::write_svg()
 {
+    float scale = pixels_per_mm * 0.352778; // 72 dpi
+
     fstream svg_out;
     svg_out.open(outfile_name.c_str(), fstream::trunc | fstream::out);
     svg_out << "<?xml version=\"1.0\" encoding=\"ISO-8859-1\" standalone=\"no\"?>\n"
@@ -368,30 +382,29 @@ void FabVars::write_svg()
             << "    \"http://www.w3.org/TR/2001/REC-SVG-20010904/DTD/svg10.dtd\">\n"
             << "<svg \n"
             << "    xmlns=\"http://www.w3.org/2000/svg\"\n"
-            << "    width=\"" << ni / pixels_per_mm << "mm\"\n"
+            << "    width=\""  << ni / pixels_per_mm << "mm\"\n"
             << "    height=\"" << nj / pixels_per_mm << "mm\"\n"
             << "    units=\"mm\"\n"
 //            << "    xmlns:inkscape=\"http://www.inkscape.org/namespaces/inkscape\"\n"
 //            << "    inkscape:document-units=\"mm\""
             << "    viewBox=\"0 0 " 
-            << ni / pixels_per_mm << ' ' << nj / pixels_per_mm << "\">\n"
+            << ni / scale << ' ' << nj / scale << "\">\n"
             << "<g style=\"stroke:rgb(0,0,0); "
             << "stroke-width:" << stroke << "; "
             << "fill:none\">\n";
 
     list<Path>::iterator it;
-    
     for (it = paths.begin(); it != paths.end(); ++it) {
-        svg_out << "  <path d=\"M" << it->front().x / pixels_per_mm
-                << ' ' << (nj - it->front().y - 1) / pixels_per_mm;
+        svg_out << "  <path d=\"M" << it->front().x / scale
+                << ' ' << (nj - it->front().y - 1) / scale;
         Path::iterator p = it->begin();
         Path::iterator path_end = it->end();
         bool loop = (it->front() == it->back());
         if (loop)
             path_end--;
         while (++p != path_end)
-            svg_out << " L" << p->x / pixels_per_mm
-                    << ' ' << (nj - p->y - 1) / pixels_per_mm;
+            svg_out << " L" << p->x / scale
+                    << ' ' << (nj - p->y - 1) / scale;
         if (loop)
             svg_out << " Z";
         svg_out << "\"/>\n";
@@ -439,6 +452,22 @@ void fab_write_png_K16(FabVars *v, const char* output_file_name) {
     res_x = 1000 * v->ni / (v->dx * v->mm_per_unit);
     res_y = 1000 * v->nj / (v->dy * v->mm_per_unit);
     png_set_pHYs(png_ptr, info_ptr, res_x, res_y, PNG_RESOLUTION_METER);
+    
+    png_text text[2];
+        
+    char zmin[10];
+    snprintf(zmin, 10, "%g", v->zmin*v->mm_per_unit);
+    text[0].compression = PNG_TEXT_COMPRESSION_NONE;
+    text[0].key = (char*)"zmin";
+    text[0].text = zmin;
+
+    char zmax[10];
+    snprintf(zmax, 10, "%g", (v->zmin+v->dz)*v->mm_per_unit);
+    text[1].compression = PNG_TEXT_COMPRESSION_NONE;
+    text[1].key = (char*)"zmax";
+    text[1].text = zmax;
+    png_set_text(png_ptr, info_ptr, text, 2);
+    
     png_write_info(png_ptr, info_ptr);
     //
     // allocate pixels

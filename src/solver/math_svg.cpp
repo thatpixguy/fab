@@ -20,7 +20,7 @@ void print_help()
          << "   slices = z slices (defaults: 1 for 2D models, 10 for 3D models)\n"
          << "   error = maximum decimation error (in mm^2)\n"
          << "   quality = voxel interpolation level (default: 8)\n"
-         << " Note: output svgs are in mm units.";
+         << "Note: output svgs are at 72 dpi." << endl;
 }
 
 

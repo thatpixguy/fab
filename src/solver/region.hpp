@@ -2,6 +2,7 @@
 #define REGION_H
 
 #include <list>
+#include <stdint.h>
 
 // Forward declarations
 struct FabVars;
@@ -64,7 +65,7 @@ typedef struct Region {
     int ni, nj, nk;
     
     // Volume of the region
-    long volume;
+    uint64_t volume;
     
 } Region;
 

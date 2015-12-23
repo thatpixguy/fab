@@ -17,7 +17,7 @@
 
 enum solver_mode { SOLVE_BOOL, SOLVE_RGB, SOLVE_REAL };
 enum output_mode { OUTPUT_PNG, OUTPUT_STL,
-                   OUTPUT_SVG, OUTPUT_NONE };
+                   OUTPUT_SVG, OUTPUT_STATS, OUTPUT_NONE };
 
 typedef struct FabVars {
     /* FabVars(output_mode o)
@@ -62,6 +62,12 @@ typedef struct FabVars {
      *  decimating contiguous paths.
      */
     void add_paths(const PathSet& p);
+
+    /* void add_volume(const int v)
+     *
+     *  Increments the saved volume count.
+     */
+    void add_volume(const uint64_t v);
 
     /* void write_png()
      *
@@ -126,7 +132,7 @@ typedef struct FabVars {
     int ni,nj,nk;
     
     // Minimum volume below which octree recursion won't occur.
-    int min_volume;
+    unsigned min_volume;
     // Minimum area below which quadtree recursion won't occur.
     int min_area;
     
@@ -172,6 +178,9 @@ typedef struct FabVars {
     
     // Saved set of triangles
     std::list<Triangle> triangles;
+    
+    // Filled solid volume
+    uint64_t volume;
     
     // Saved set of paths
     PathSet paths;

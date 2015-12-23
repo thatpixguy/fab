@@ -30,7 +30,7 @@ void ImageSolver::evaluate_region(Region r)
 {  
     // For sufficiently small fractions of the space, do a
     // point-by-point evaluation rather than recursing.
-    if (r.volume > 0 && r.volume <= v.min_volume) {
+    if (r.volume <= v.min_volume) {
         evaluate_points(r);
         v.pb.update(r.volume);
         return;
