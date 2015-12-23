@@ -1,5 +1,6 @@
 import numpy
 import re
+import sys
 
 whitespace_or_comma_re = re.compile("[\s,]")
 
@@ -10,7 +11,6 @@ def split_on_whitespace_or_comma(string):
     return whitespace_or_comma_re.split(string)
 
 class Transform:
-
 
     def __init__(self):
         self.stack = []
@@ -26,12 +26,15 @@ class Transform:
         self.matrix=self.matrix*matrix
 
     def translate(self,x,y):
+        print >> sys.stderr, "translate({},{})".format(x,y)
         self.matrix*=numpy.matrix([[1,0,x],[0,1,y],[0,0,1]])
     
     def scale(self,x,y):
+        print >> sys.stderr, "scale({},{})".format(x,y)
         self.matrix*=numpy.matrix([[x,0,0],[0,y,0],[0,0,1]])
 
     def rotate(self,a):
+        print >> sys.stderr, "rotate({})".format(a)
         r = math.radians(a)
         self.matrix*=numpy.matrix([[math.cos(r),-math.sin(r),0],[math.sin(r),math.cos(r),0],[0,0,1]])
 
@@ -54,6 +57,9 @@ class Transform:
                 self.scale(*axes)
             else:
                 print >> sys.stderr, "ignored unsupported transform {}({})".format(transform,args)
+
+    def __str__(self):
+        return str(self.matrix)
 
 class Path:
     
@@ -121,7 +127,16 @@ class Path:
             # store the first point, untransformed
             self.segment_start = axes
 
-        self.segments[-1].append(transform.apply(axes))
+        transformed = transform.apply(axes)
+
+#        for (axis,v) in enumerate(transformed):
+#            if v>self.d[axis]:
+#                print >> sys.stderr, "WARNING: {}-axis value {} is larger than d{} of {}".format("xyzw"[axis],v,"xyzw"[axis],self.d[axis])
+#                print >> sys.stderr, "WARNING: untransformed value was {}, matrix was \n{}".format(axes[axis],transform)
+                
+ 
+
+        self.segments[-1].append(transformed)
 
     def close_segment(self,transform):
         self.add_point(*(self.segment_start+(transform,)))

@@ -43,6 +43,15 @@ fab:
 	 make;                                             \
 	 make install | sed "s@$(PWD)/src/../@@g"
 
+fab-debug:
+	@echo "Building with CMake"
+	@mkdir -p build
+
+	@cd build;                                         \
+	 cmake -DCMAKE_BUILD_TYPE=Debug ../src;            \
+	 echo $(PWD);                                      \
+	 make;                                             \
+	 make install | sed "s@$(PWD)/src/../@@g"
 	
 doc: commands.html
 commands.html: fab
